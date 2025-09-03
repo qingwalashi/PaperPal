@@ -141,6 +141,10 @@ function initializeFileUpload() {
     const fileInput = document.getElementById('file-input');
 
     // 拖拽上传
+    uploadArea.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
         uploadArea.classList.add('dragover');
@@ -164,6 +168,13 @@ function initializeFileUpload() {
         if (e.target.files.length > 0) {
             handleFile(e.target.files[0]);
         }
+    });
+
+    // 防止浏览器在页面上打开拖入的文件
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+        document.addEventListener(evt, (e) => {
+            e.preventDefault();
+        });
     });
 }
 

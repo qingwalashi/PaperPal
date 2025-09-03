@@ -40,10 +40,10 @@
                             <div class="upload-zone mb-6" id="upload-zone">
                                 <input type="file" id="file-input" accept=".doc,.docx" class="hidden">
                                 <div class="text-center">
-                                    <i class="bi bi-file-earmark-word text-5xl text-gray-400 mb-4"></i>
+                                    <i class="bi bi-file-earmark-word text-5xl text-blue-500 mb-4"></i>
                                     <p class="text-lg text-gray-600 mb-2">拖拽或点击上传Word文档</p>
                                     <p class="text-sm text-gray-500 mb-4">支持 .doc, .docx 格式</p>
-                                    <button class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" onclick="document.getElementById('file-input').click()">
+                                    <button type="button" class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
                                         <i class="bi bi-folder2-open mr-2"></i>
                                         选择文件
                                     </button>
@@ -53,42 +53,21 @@
                             <!-- 文件信息 -->
                             <div id="file-info" class="hidden">
                                 <div class="bg-gray-50 rounded-lg p-4 mb-4">
-                                    <h3 class="font-medium text-gray-800 mb-2">文件信息</h3>
-                                    <div class="space-y-2 text-sm">
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600">文件名：</span>
-                                            <span id="file-name" class="font-medium"></span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600">文件大小：</span>
-                                            <span id="file-size" class="font-medium"></span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600">文件类型：</span>
-                                            <span id="file-type" class="font-medium"></span>
-                                        </div>
+                                    <h3 class="font-medium text-gray-800 mb-3">文件信息</h3>
+                                    <div class="text-sm grid grid-cols-12 gap-y-2 gap-x-3">
+                                        <div class="col-span-4 md:col-span-3 text-gray-600">文件名：</div>
+                                        <div id="file-name" class="col-span-8 md:col-span-9 font-medium text-gray-800 break-all"></div>
+
+                                        <div class="col-span-4 md:col-span-3 text-gray-600">文件大小：</div>
+                                        <div id="file-size" class="col-span-8 md:col-span-9 font-medium text-gray-800"></div>
+
+                                        <div class="col-span-4 md:col-span-3 text-gray-600">文件类型：</div>
+                                        <div id="file-type" class="col-span-8 md:col-span-9 font-medium text-gray-800 break-all"></div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- 处理选项 -->
-                            <div id="processing-options" class="hidden">
-                                <h3 class="font-medium text-gray-800 mb-4">处理选项</h3>
-                                <div class="space-y-3">
-                                    <button class="process-btn w-full" data-action="preview">
-                                        <i class="bi bi-eye mr-2"></i>
-                                        在线预览
-                                    </button>
-                                    <button class="process-btn w-full" data-action="to-html">
-                                        <i class="bi bi-code-slash mr-2"></i>
-                                        转换为HTML
-                                    </button>
-                                    <button class="process-btn w-full" data-action="to-markdown">
-                                        <i class="bi bi-markdown mr-2"></i>
-                                        转换为Markdown
-                                    </button>
-                                </div>
-                            </div>
+                            <!-- 处理选项：移除按钮，改为上传后自动预览 -->
 
                             <!-- 进度条 -->
                             <div id="progress-container" class="hidden mt-6">
@@ -114,13 +93,17 @@
                                     <span id="result-title">预览区域</span>
                                 </h2>
                                 <div id="result-actions" class="hidden space-x-2">
-                                    <button id="download-btn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                                        <i class="bi bi-download mr-2"></i>
-                                        下载结果
-                                    </button>
-                                    <button id="copy-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                    <button id="copy-txt-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
                                         <i class="bi bi-clipboard mr-2"></i>
-                                        复制内容
+                                        复制为 TXT
+                                    </button>
+                                    <button id="copy-md-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                        <i class="bi bi-markdown mr-2"></i>
+                                        复制为 MD
+                                    </button>
+                                    <button id="copy-html-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                        <i class="bi bi-code-slash mr-2"></i>
+                                        复制为 HTML
                                     </button>
                                 </div>
                             </div>
@@ -129,7 +112,7 @@
                         <div class="p-6">
                             <!-- 默认状态 -->
                             <div id="default-state" class="text-center py-12">
-                                <i class="bi bi-file-earmark-text text-6xl text-gray-300 mb-4"></i>
+                                <i class="bi bi-file-earmark-text text-6xl text-blue-500 mb-4"></i>
                                 <h3 class="text-xl font-medium text-gray-500 mb-2">请上传Word文档</h3>
                                 <p class="text-gray-400">支持在线预览和格式转换</p>
                             </div>
@@ -171,49 +154,7 @@
                 </div>
             </div>
 
-            <!-- 功能说明 -->
-            <div class="mt-12 bg-blue-50 rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-blue-800 mb-4">
-                    <i class="bi bi-info-circle mr-2"></i>
-                    功能说明
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-blue-700">
-                    <div>
-                        <h4 class="font-medium mb-2">
-                            <i class="bi bi-eye mr-1"></i>
-                            在线预览
-                        </h4>
-                        <p>直接在浏览器中预览Word文档内容，无需安装额外软件。支持文字、图片、表格等元素的显示。</p>
-                    </div>
-                    <div>
-                        <h4 class="font-medium mb-2">
-                            <i class="bi bi-code-slash mr-1"></i>
-                            转换HTML
-                        </h4>
-                        <p>将Word文档转换为HTML格式，保持原有的格式和样式，便于网页展示和进一步编辑。</p>
-                    </div>
-                    <div>
-                        <h4 class="font-medium mb-2">
-                            <i class="bi bi-markdown mr-1"></i>
-                            转换Markdown
-                        </h4>
-                        <p>将Word文档转换为Markdown格式，适合技术文档编写和版本控制管理。</p>
-                    </div>
-                </div>
-                
-                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <h4 class="font-medium text-yellow-800 mb-2">
-                        <i class="bi bi-exclamation-triangle mr-2"></i>
-                        注意事项
-                    </h4>
-                    <ul class="text-sm text-yellow-700 space-y-1">
-                        <li>• 文件大小建议不超过10MB，以确保处理速度</li>
-                        <li>• 复杂的格式和特殊元素可能在转换过程中有所简化</li>
-                        <li>• 所有处理均在本地进行，文档内容不会上传到服务器</li>
-                        <li>• 建议使用现代浏览器以获得最佳体验</li>
-                    </ul>
-                </div>
-            </div>
+            
         </div>
     </div>
 

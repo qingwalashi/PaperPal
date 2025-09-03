@@ -295,12 +295,20 @@ a.button svg,
 .page-header {
     background: var(--pp-surface);
     color: var(--pp-text-strong);
-    padding: 1rem 0 1.25rem; /* 上方更紧凑，标题更靠近导航 */
+    padding: 0.5rem 0 0.75rem; /* 收紧上下间距，标题区域更窄 */
     margin-bottom: 1.25rem;   /* 下方留白略缩短 */
     border-bottom: none;      /* 使用阴影替代分割线 */
     box-shadow: 0 12px 24px -18px rgba(2, 54, 132, 0.18); /* 柔和下阴影分隔 */
     margin-top: 64px; /* 为顶部导航栏留出空间 */
     transition: opacity 180ms ease, transform 180ms ease; /* 滚动淡出与上移过渡 */
+}
+
+/* 收起状态：与 JS 同步（opacity/transform），并减少底部间距，避免空白占位 */
+.page-header.collapsed {
+    opacity: 0;
+    transform: translateY(-16px);
+    margin-bottom: 0.5rem;
+    pointer-events: none;
 }
 
 .page-title {
@@ -311,7 +319,7 @@ a.button svg,
 }
 
 .page-title i {
-    font-size: 3.5rem;
+    font-size: 3.25rem; /* 略微减小图标尺寸以降低整体高度 */
     margin-right: 1rem;
 }
 
@@ -338,11 +346,11 @@ a.button svg,
     .hamburger.active { right: 1rem; }
     .main-content.sidebar-open { margin-left: 0; }
     .feature-card { padding: 1.5rem; }
-    .page-header { padding: 0.75rem 0 1rem; margin-bottom: 1rem; }
+    .page-header { padding: 0.5rem 0 0.75rem; margin-bottom: 0.75rem; }
     .page-title { font-size: 2.5rem; margin-bottom: 0.2rem; }
     .topnav-brand .brand-text { max-width: 60vw; }
     .page-title i {
-        font-size: 3rem;
+        font-size: 2.75rem;
         margin-right: 0.75rem;
     }
     
@@ -390,6 +398,17 @@ a.button svg,
 .upload-zone.dragover {
     border-color: #3b82f6;
     background: #dbeafe;
+}
+
+/* MD 转 Word 页面：上传区域类名为 upload-area，这里补充一致的样式与拖入高亮 */
+.upload-area {
+    transition: all 0.25s ease;
+}
+.upload-area.dragover {
+    border-color: var(--pp-primary-600) !important;
+    background: var(--pp-primary-100) !important;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.15);
+    transform: scale(1.01);
 }
 
 /* 进度条样式 */

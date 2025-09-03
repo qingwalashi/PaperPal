@@ -16,8 +16,7 @@ function initializeDocProcessor() {
     // 初始化文件上传
     initializeFileUpload();
     
-    // 初始化处理按钮
-    initializeProcessButtons();
+    // 处理按钮已移除，上传后自动预览
     
     // 初始化标签页切换
     initializeTabSwitching();
@@ -52,11 +51,11 @@ function handleFileUpload(files) {
     
     // 显示文件信息
     displayFileInfo(file);
-    
-    // 显示处理选项
-    document.getElementById('processing-options').classList.remove('hidden');
-    
-    CommonUtils.showNotification('文件上传成功！请选择处理方式。', 'success');
+    // 上传后自动进行文档预览
+    previewDocument().catch(err => {
+        console.error(err);
+        CommonUtils.showNotification('预览失败，请重试！', 'error');
+    });
 }
 
 // 显示文件信息
@@ -68,7 +67,10 @@ function displayFileInfo(file) {
     
     fileName.textContent = file.name;
     fileSize.textContent = CommonUtils.formatFileSize(file.size);
-    fileType.textContent = file.type || '未知类型';
+    const ext = getFileExtension(file.name);
+    fileType.textContent = ext ? ext : '未知类型';
+    // 仍保留 MIME 作为悬浮提示
+    if (file.type) fileType.title = file.type;
     
     fileInfo.classList.remove('hidden');
 }
@@ -291,15 +293,60 @@ function initializeTabSwitching() {
 
 // 初始化结果操作按钮
 function initializeResultActions() {
-    // 下载按钮
-    document.getElementById('download-btn').addEventListener('click', () => {
-        downloadResult();
-    });
-    
-    // 复制按钮
-    document.getElementById('copy-btn').addEventListener('click', () => {
-        copyResult();
-    });
+    const copyTxtBtn = document.getElementById('copy-txt-btn');
+    const copyMdBtn = document.getElementById('copy-md-btn');
+    const copyHtmlBtn = document.getElementById('copy-html-btn');
+
+    if (copyTxtBtn) {
+        copyTxtBtn.addEventListener('click', () => {
+            if (!currentResult || !currentResult.html) {
+                CommonUtils.showNotification('没有可复制的内容！', 'warning');
+                return;
+            }
+            const text = htmlToPlainText(currentResult.html);
+            navigator.clipboard.writeText(text).then(() => {
+                CommonUtils.showNotification('已复制为 TXT！', 'success');
+            }).catch(() => {
+                CommonUtils.showNotification('复制失败，请手动复制！', 'error');
+            });
+        });
+    }
+
+    if (copyMdBtn) {
+        copyMdBtn.addEventListener('click', () => {
+            if (!currentResult || !currentResult.html) {
+                CommonUtils.showNotification('没有可复制的内容！', 'warning');
+                return;
+            }
+            try {
+                const turndownService = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+                const md = turndownService.turndown(currentResult.html);
+                navigator.clipboard.writeText(md).then(() => {
+                    CommonUtils.showNotification('已复制为 Markdown！', 'success');
+                }).catch(() => {
+                    CommonUtils.showNotification('复制失败，请手动复制！', 'error');
+                });
+            } catch (e) {
+                console.error(e);
+                CommonUtils.showNotification('转换为 Markdown 失败！', 'error');
+            }
+        });
+    }
+
+    if (copyHtmlBtn) {
+        copyHtmlBtn.addEventListener('click', () => {
+            if (!currentResult || !currentResult.html) {
+                CommonUtils.showNotification('没有可复制的内容！', 'warning');
+                return;
+            }
+            const html = formatHtml(currentResult.html);
+            navigator.clipboard.writeText(html).then(() => {
+                CommonUtils.showNotification('已复制为 HTML！', 'success');
+            }).catch(() => {
+                CommonUtils.showNotification('复制失败，请手动复制！', 'error');
+            });
+        });
+    }
 }
 
 // 下载结果
@@ -391,9 +438,36 @@ function formatHtml(html) {
         .join('\n');
 }
 
+// 将 HTML 转为纯文本（用于复制为 TXT）
+function htmlToPlainText(html) {
+    try {
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        // 处理 <br> 和块级元素的换行
+        const brToNewline = (node) => {
+            node.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+            node.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, table, tr').forEach(el => {
+                if (!el.textContent.endsWith('\n')) el.appendChild(document.createTextNode('\n'));
+            });
+        };
+        brToNewline(div);
+        const text = div.textContent || '';
+        return text.replace(/\n{3,}/g, '\n\n').trim();
+    } catch (e) {
+        return html;
+    }
+}
+
 // 获取不带扩展名的文件名
 function getFileNameWithoutExt(filename) {
     return filename.replace(/\.[^/.]+$/, '');
+}
+
+// 获取文件后缀（包含点），如 .docx；若无扩展名返回空字符串
+function getFileExtension(filename) {
+    if (!filename) return '';
+    const match = filename.match(/(\.[^.]+)$/);
+    return match ? match[1].toLowerCase() : '';
 }
 
 // 添加样式
@@ -404,18 +478,19 @@ const additionalCSS = `
     align-items: center;
     justify-content: center;
     padding: 0.75rem 1rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
+    background: var(--pp-primary-600);
+    color: #fff;
+    border: 1px solid rgba(37, 99, 235, 0.25);
     border-radius: 0.5rem;
     font-weight: 500;
     transition: all 0.3s ease;
     cursor: pointer;
+    box-shadow: var(--pp-shadow);
 }
 
 .process-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(102, 126, 234, 0.3);
+    background: var(--pp-primary-700);
+    transform: translateY(-1px);
 }
 
 .process-btn:disabled {

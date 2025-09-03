@@ -284,6 +284,8 @@ class FileHandler {
             };
 
             input.addEventListener('change', changeHandler, { once: true });
+            // 关键：重置 value，确保连续选择同一文件名也能触发 change
+            input.value = '';
             
             input.click();
         });

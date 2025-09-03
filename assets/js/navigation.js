@@ -188,7 +188,7 @@ class Navigation {
         document.body.style.overflow = '';
     }
 
-    // 滚动时：逐步隐藏页面头部；完全隐藏后，用页面标题替换导航栏品牌文案
+    // 滚动时：逐步隐藏页面头部；到达阈值后吸附隐藏；隐藏时用页面标题替换导航栏品牌文案
     setupHeaderScrollBehavior() {
         const headerEl = document.querySelector('.page-header');
         const titleEl = document.querySelector('.page-title');
@@ -199,29 +199,54 @@ class Navigation {
         const defaultBrand = 'PaperPal';
         const pageTitle = (titleEl.textContent || '').trim() || defaultBrand;
 
+        // 吸附阈值（比例）：小于该值向下滚动则收起，大于该值向上滚动则展开
+        const collapseThreshold = 0.6; // 距离顶部剩余 60% 高度以下时更倾向收起
+        const expandThreshold = 0.35;  // 放宽展开阈值，回到 35% 以上即展开
+        let collapsed = false;
+        let lastY = window.scrollY;
         let ticking = false;
+
+        const applyCollapsed = (flag) => {
+            collapsed = flag;
+            if (collapsed) {
+                headerEl.classList.add('collapsed');
+                headerEl.style.opacity = '0';
+                headerEl.style.transform = 'translateY(-16px)';
+                if (brandTextEl.textContent !== pageTitle) brandTextEl.textContent = pageTitle;
+            } else {
+                headerEl.classList.remove('collapsed');
+                headerEl.style.opacity = '';
+                headerEl.style.transform = '';
+                if (brandTextEl.textContent !== defaultBrand) brandTextEl.textContent = defaultBrand;
+            }
+        };
+
         const onScroll = () => {
             if (ticking) return;
             ticking = true;
             window.requestAnimationFrame(() => {
+                const currentY = window.scrollY;
+                const scrollingDown = currentY > lastY + 1;
                 const rect = headerEl.getBoundingClientRect();
                 const height = Math.max(rect.height, 1);
                 const bottom = rect.bottom; // header 底部到视口顶部的距离
-                // 当 header 底部 <= 导航底部，视为完全隐藏
                 const ratio = Math.min(Math.max((bottom - navHeight) / height, 0), 1);
-                // 渐隐与上移
-                headerEl.style.opacity = String(ratio);
-                const translate = (1 - ratio) * 12; // 最多上移 12px，细微
-                headerEl.style.transform = `translateY(-${translate}px)`;
 
-                // 标题切换
-                if (ratio <= 0.01) {
-                    // 完全隐藏后显示页面标题
-                    if (brandTextEl.textContent !== pageTitle) brandTextEl.textContent = pageTitle;
-                } else {
-                    if (brandTextEl.textContent !== defaultBrand) brandTextEl.textContent = defaultBrand;
+                // 渐隐与上移（在未收起时进行平滑过渡）
+                if (!collapsed) {
+                    headerEl.style.opacity = String(ratio);
+                    const translate = (1 - ratio) * 12; // 最多上移 12px
+                    headerEl.style.transform = `translateY(-${translate}px)`;
                 }
 
+                // 吸附逻辑
+                if (scrollingDown && ratio < collapseThreshold && !collapsed) {
+                    applyCollapsed(true);
+                } else if (!scrollingDown && collapsed && ratio > expandThreshold) {
+                    applyCollapsed(false);
+                }
+
+                lastY = currentY;
                 ticking = false;
             });
         };
