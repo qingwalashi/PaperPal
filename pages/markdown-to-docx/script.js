@@ -185,8 +185,71 @@ function handleFile(file) {
 // 初始化模板设置
 function initializeTemplateSettings() {
     const templateSelect = document.getElementById('template-select');
-    
-    // 模板选择事件
+    const formModeBtn = document.getElementById('form-mode-btn');
+    const yamlModeBtn = document.getElementById('yaml-mode-btn');
+    const formSettings = document.getElementById('form-settings');
+    const yamlSettings = document.getElementById('yaml-settings');
+    const yamlTextarea = document.getElementById('template-config');
+
+    // Initialize CodeMirror Editor
+    const yamlEditor = CodeMirror.fromTextArea(yamlTextarea, {
+        mode: 'yaml',
+        lineNumbers: true,
+        theme: 'default',
+        gutters: ["CodeMirror-lint-markers"],
+        lint: true
+    });
+    yamlEditor.setSize("100%", "500px");
+
+    // Wrapper for updating YAML editor
+    function updateConfigTextarea(config) {
+        const yamlText = jsyaml.dump(config);
+        yamlEditor.setValue(yamlText);
+    }
+
+    let currentMode = 'form'; // 'form' or 'yaml'
+
+    // Function to switch mode
+    function switchMode(newMode) {
+        if (newMode === 'form') {
+            currentMode = 'form';
+            formSettings.style.display = 'block';
+            yamlSettings.style.display = 'none';
+            formModeBtn.classList.add('bg-blue-500', 'text-white');
+            formModeBtn.classList.remove('text-gray-700');
+            yamlModeBtn.classList.remove('bg-blue-500', 'text-white');
+            yamlModeBtn.classList.add('text-gray-700');
+            
+            // Sync from YAML to Form
+            try {
+                const config = jsyaml.load(yamlEditor.getValue());
+                updateFormValues(config);
+            } catch (e) {
+                console.error('Invalid YAML:', e);
+                // Error is already shown by linter
+            }
+
+        } else { // yaml mode
+            currentMode = 'yaml';
+            formSettings.style.display = 'none';
+            yamlSettings.style.display = 'block';
+            yamlModeBtn.classList.add('bg-blue-500', 'text-white');
+            yamlModeBtn.classList.remove('text-gray-700');
+            formModeBtn.classList.remove('bg-blue-500', 'text-white');
+            formModeBtn.classList.add('text-gray-700');
+
+            // Sync from Form to YAML
+            const newConfig = getConfigFromForm();
+            updateConfigTextarea(newConfig);
+            // Refresh editor as it was hidden
+            setTimeout(() => yamlEditor.refresh(), 1);
+        }
+    }
+
+    formModeBtn.addEventListener('click', () => switchMode('form'));
+    yamlModeBtn.addEventListener('click', () => switchMode('yaml'));
+
+    // Template selection event
     templateSelect.addEventListener('change', (e) => {
         const selectedTemplate = e.target.value;
         if (templates[selectedTemplate]) {
@@ -196,13 +259,25 @@ function initializeTemplateSettings() {
         }
     });
 
-    // 表单值变化时更新YAML配置
-    const formInputs = document.querySelectorAll('#text-settings select, #text-settings input, #heading-settings select, #table-settings select, #table-settings input, #margin-settings input');
+    // Form inputs change event to update YAML
+    const formInputs = document.querySelectorAll('#form-settings select, #form-settings input');
     formInputs.forEach(input => {
         input.addEventListener('change', () => {
             const newConfig = getConfigFromForm();
             updateConfigTextarea(newConfig);
         });
+    });
+
+    // CodeMirror change event to update form
+    yamlEditor.on('change', (editor) => {
+        try {
+            const config = jsyaml.load(editor.getValue());
+            if (config) {
+                updateFormValues(config);
+            }
+        } catch (e) {
+            // Ignore parsing errors while typing, linter will show them
+        }
     });
 }
 
@@ -284,12 +359,12 @@ function getConfigFromForm() {
 
 // 更新配置文本框
 function updateConfigTextarea(template) {
-    const configTextarea = document.getElementById('template-config');
-    configTextarea.value = jsyaml.dump(template, {
+    const yamlText = jsyaml.dump(template, {
         indent: 2,
         lineWidth: -1,
         noRefs: true
     });
+    yamlEditor.setValue(yamlText);
 }
 
 // 将HTML转换为docx格式
