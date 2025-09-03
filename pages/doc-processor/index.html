@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doc处理 - PaperPal</title>
+    <link href="../../assets/css/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="../../assets/css/components.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="main-content">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <div class="container mx-auto px-4">
+                <div class="text-center">
+                    <h1 class="page-title">
+                        <i class="bi bi-file-earmark-richtext mr-3"></i>
+                        Doc处理
+                    </h1>
+                    <p class="page-subtitle">Word文档在线预览、转换HTML、转换Markdown</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="container mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- 上传区域 -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-lg shadow-lg sticky top-8">
+                        <div class="border-b p-4">
+                            <h2 class="text-xl font-semibold text-gray-800">
+                                <i class="bi bi-cloud-upload mr-2"></i>
+                                上传文档
+                            </h2>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- 文件上传区域 -->
+                            <div class="upload-zone mb-6" id="upload-zone">
+                                <input type="file" id="file-input" accept=".doc,.docx" class="hidden">
+                                <div class="text-center">
+                                    <i class="bi bi-file-earmark-word text-5xl text-gray-400 mb-4"></i>
+                                    <p class="text-lg text-gray-600 mb-2">拖拽或点击上传Word文档</p>
+                                    <p class="text-sm text-gray-500 mb-4">支持 .doc, .docx 格式</p>
+                                    <button class="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors" onclick="document.getElementById('file-input').click()">
+                                        <i class="bi bi-folder2-open mr-2"></i>
+                                        选择文件
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 文件信息 -->
+                            <div id="file-info" class="hidden">
+                                <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                                    <h3 class="font-medium text-gray-800 mb-2">文件信息</h3>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">文件名：</span>
+                                            <span id="file-name" class="font-medium"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">文件大小：</span>
+                                            <span id="file-size" class="font-medium"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">文件类型：</span>
+                                            <span id="file-type" class="font-medium"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 处理选项 -->
+                            <div id="processing-options" class="hidden">
+                                <h3 class="font-medium text-gray-800 mb-4">处理选项</h3>
+                                <div class="space-y-3">
+                                    <button class="process-btn w-full" data-action="preview">
+                                        <i class="bi bi-eye mr-2"></i>
+                                        在线预览
+                                    </button>
+                                    <button class="process-btn w-full" data-action="to-html">
+                                        <i class="bi bi-code-slash mr-2"></i>
+                                        转换为HTML
+                                    </button>
+                                    <button class="process-btn w-full" data-action="to-markdown">
+                                        <i class="bi bi-markdown mr-2"></i>
+                                        转换为Markdown
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 进度条 -->
+                            <div id="progress-container" class="hidden mt-6">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-600">处理进度</span>
+                                    <span id="progress-text" class="text-sm text-gray-600">0%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 预览/结果区域 -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-lg shadow-lg">
+                        <div class="border-b p-4">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-xl font-semibold text-gray-800">
+                                    <i class="bi bi-display mr-2"></i>
+                                    <span id="result-title">预览区域</span>
+                                </h2>
+                                <div id="result-actions" class="hidden space-x-2">
+                                    <button id="download-btn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                                        <i class="bi bi-download mr-2"></i>
+                                        下载结果
+                                    </button>
+                                    <button id="copy-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                                        <i class="bi bi-clipboard mr-2"></i>
+                                        复制内容
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- 默认状态 -->
+                            <div id="default-state" class="text-center py-12">
+                                <i class="bi bi-file-earmark-text text-6xl text-gray-300 mb-4"></i>
+                                <h3 class="text-xl font-medium text-gray-500 mb-2">请上传Word文档</h3>
+                                <p class="text-gray-400">支持在线预览和格式转换</p>
+                            </div>
+
+                            <!-- 预览区域 -->
+                            <div id="preview-area" class="hidden">
+                                <div id="document-preview" class="border rounded-lg p-6 bg-white min-h-96 max-h-96 overflow-y-auto"></div>
+                            </div>
+
+                            <!-- HTML结果区域 -->
+                            <div id="html-result" class="hidden">
+                                <div class="mb-4">
+                                    <div class="flex space-x-4 border-b">
+                                        <button class="tab-btn active" data-tab="html-preview">预览</button>
+                                        <button class="tab-btn" data-tab="html-code">HTML代码</button>
+                                    </div>
+                                </div>
+                                <div id="html-preview" class="tab-content active border rounded-lg p-6 bg-white min-h-96 max-h-96 overflow-y-auto"></div>
+                                <div id="html-code" class="tab-content hidden">
+                                    <textarea id="html-textarea" class="w-full h-96 p-4 border rounded-lg font-mono text-sm bg-gray-50" readonly></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Markdown结果区域 -->
+                            <div id="markdown-result" class="hidden">
+                                <div class="mb-4">
+                                    <div class="flex space-x-4 border-b">
+                                        <button class="tab-btn active" data-tab="md-preview">预览</button>
+                                        <button class="tab-btn" data-tab="md-code">Markdown代码</button>
+                                    </div>
+                                </div>
+                                <div id="md-preview" class="tab-content active border rounded-lg p-6 bg-white min-h-96 max-h-96 overflow-y-auto prose max-w-none"></div>
+                                <div id="md-code" class="tab-content hidden">
+                                    <textarea id="markdown-textarea" class="w-full h-96 p-4 border rounded-lg font-mono text-sm bg-gray-50" readonly></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 功能说明 -->
+            <div class="mt-12 bg-blue-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4">
+                    <i class="bi bi-info-circle mr-2"></i>
+                    功能说明
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-blue-700">
+                    <div>
+                        <h4 class="font-medium mb-2">
+                            <i class="bi bi-eye mr-1"></i>
+                            在线预览
+                        </h4>
+                        <p>直接在浏览器中预览Word文档内容，无需安装额外软件。支持文字、图片、表格等元素的显示。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2">
+                            <i class="bi bi-code-slash mr-1"></i>
+                            转换HTML
+                        </h4>
+                        <p>将Word文档转换为HTML格式，保持原有的格式和样式，便于网页展示和进一步编辑。</p>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2">
+                            <i class="bi bi-markdown mr-1"></i>
+                            转换Markdown
+                        </h4>
+                        <p>将Word文档转换为Markdown格式，适合技术文档编写和版本控制管理。</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h4 class="font-medium text-yellow-800 mb-2">
+                        <i class="bi bi-exclamation-triangle mr-2"></i>
+                        注意事项
+                    </h4>
+                    <ul class="text-sm text-yellow-700 space-y-1">
+                        <li>• 文件大小建议不超过10MB，以确保处理速度</li>
+                        <li>• 复杂的格式和特殊元素可能在转换过程中有所简化</li>
+                        <li>• 所有处理均在本地进行，文档内容不会上传到服务器</li>
+                        <li>• 建议使用现代浏览器以获得最佳体验</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入脚本 -->
+    <script src="https://unpkg.com/mammoth@1.4.2/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/turndown@7.1.1/dist/turndown.js"></script>
+    <script src="../../assets/js/common.js"></script>
+    <script src="../../assets/js/navigation.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

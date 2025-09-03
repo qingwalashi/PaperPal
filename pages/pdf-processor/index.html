@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF处理 - PaperPal</title>
+    <link href="../../assets/css/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="../../assets/css/components.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <div class="main-content">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <div class="container mx-auto px-4">
+                <div class="text-center">
+                    <h1 class="page-title">
+                        <i class="bi bi-file-earmark-pdf mr-3"></i>
+                        PDF处理
+                    </h1>
+                    <p class="page-subtitle">PDF文档在线预览，无需安装额外软件</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要内容 -->
+        <div class="container mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <!-- 控制面板 -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-lg shadow-lg sticky top-8">
+                        <div class="border-b p-4">
+                            <h2 class="text-xl font-semibold text-gray-800">
+                                <i class="bi bi-gear mr-2"></i>
+                                控制面板
+                            </h2>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- 文件上传区域 -->
+                            <div class="mb-6">
+                                <h3 class="font-medium text-gray-800 mb-3">上传PDF文件</h3>
+                                <div class="upload-zone" id="upload-zone">
+                                    <input type="file" id="file-input" accept=".pdf,application/pdf" class="hidden">
+                                    <div class="text-center">
+                                        <i class="bi bi-file-earmark-pdf text-4xl text-gray-400 mb-3"></i>
+                                        <p class="text-sm text-gray-600 mb-2">拖拽或点击上传</p>
+                                        <button class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm" onclick="document.getElementById('file-input').click()">
+                                            <i class="bi bi-folder2-open mr-1"></i>
+                                            选择文件
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 文件信息 -->
+                            <div id="file-info" class="hidden mb-6">
+                                <h3 class="font-medium text-gray-800 mb-3">文件信息</h3>
+                                <div class="bg-gray-50 rounded-lg p-3 space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">文件名：</span>
+                                        <span id="file-name" class="font-medium truncate ml-2"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">文件大小：</span>
+                                        <span id="file-size" class="font-medium"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600">页数：</span>
+                                        <span id="page-count" class="font-medium">-</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 页面导航 -->
+                            <div id="page-navigation" class="hidden mb-6">
+                                <h3 class="font-medium text-gray-800 mb-3">页面导航</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center space-x-2">
+                                        <button id="prev-page" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50">
+                                            <i class="bi bi-chevron-left"></i>
+                                        </button>
+                                        <div class="flex-1 text-center">
+                                            <span class="text-sm text-gray-600">第 </span>
+                                            <input type="number" id="current-page" class="w-12 text-center border rounded px-1 py-1 text-sm" value="1" min="1">
+                                            <span class="text-sm text-gray-600"> / </span>
+                                            <span id="total-pages" class="text-sm text-gray-600">0</span>
+                                            <span class="text-sm text-gray-600"> 页</span>
+                                        </div>
+                                        <button id="next-page" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50">
+                                            <i class="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                    <button id="go-to-page" class="w-full px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm">
+                                        跳转到页面
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 缩放控制 -->
+                            <div id="zoom-controls" class="hidden mb-6">
+                                <h3 class="font-medium text-gray-800 mb-3">缩放控制</h3>
+                                <div class="space-y-3">
+                                    <div class="flex items-center space-x-2">
+                                        <button id="zoom-out" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
+                                            <i class="bi bi-zoom-out"></i>
+                                        </button>
+                                        <div class="flex-1 text-center">
+                                            <span id="zoom-level" class="text-sm font-medium">100%</span>
+                                        </div>
+                                        <button id="zoom-in" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
+                                            <i class="bi bi-zoom-in"></i>
+                                        </button>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button class="zoom-preset px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm" data-zoom="0.5">50%</button>
+                                        <button class="zoom-preset px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm" data-zoom="0.75">75%</button>
+                                        <button class="zoom-preset px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm" data-zoom="1">100%</button>
+                                        <button class="zoom-preset px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm" data-zoom="1.25">125%</button>
+                                        <button class="zoom-preset px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm" data-zoom="1.5">150%</button>
+                                        <button class="zoom-preset px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm" data-zoom="2">200%</button>
+                                    </div>
+                                    <button id="fit-width" class="w-full px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm">
+                                        适应宽度
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 工具栏 -->
+                            <div id="pdf-tools" class="hidden">
+                                <h3 class="font-medium text-gray-800 mb-3">工具</h3>
+                                <div class="space-y-2">
+                                    <button id="download-pdf" class="w-full px-3 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-sm">
+                                        <i class="bi bi-download mr-2"></i>
+                                        下载PDF
+                                    </button>
+                                    <button id="print-pdf" class="w-full px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-sm">
+                                        <i class="bi bi-printer mr-2"></i>
+                                        打印PDF
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 进度条 -->
+                            <div id="progress-container" class="hidden mt-6">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-600">加载进度</span>
+                                    <span id="progress-text" class="text-sm text-gray-600">0%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PDF预览区域 -->
+                <div class="lg:col-span-3">
+                    <div class="bg-white rounded-lg shadow-lg">
+                        <div class="border-b p-4">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-xl font-semibold text-gray-800">
+                                    <i class="bi bi-display mr-2"></i>
+                                    PDF预览
+                                </h2>
+                                <div id="view-mode-toggle" class="hidden">
+                                    <div class="flex bg-gray-100 rounded-lg p-1">
+                                        <button id="single-page-mode" class="px-3 py-1 rounded text-sm font-medium bg-white text-gray-700 shadow-sm">
+                                            单页
+                                        </button>
+                                        <button id="continuous-mode" class="px-3 py-1 rounded text-sm font-medium text-gray-500">
+                                            连续
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- 默认状态 -->
+                            <div id="default-state" class="text-center py-16">
+                                <i class="bi bi-file-earmark-pdf text-6xl text-gray-300 mb-4"></i>
+                                <h3 class="text-xl font-medium text-gray-500 mb-2">请上传PDF文件</h3>
+                                <p class="text-gray-400">支持在线预览，无需安装额外软件</p>
+                            </div>
+
+                            <!-- PDF预览容器 -->
+                            <div id="pdf-container" class="hidden">
+                                <div id="pdf-viewer" class="flex justify-center">
+                                    <!-- PDF页面将在这里渲染 -->
+                                </div>
+                            </div>
+
+                            <!-- 加载状态 -->
+                            <div id="loading-state" class="hidden text-center py-16">
+                                <div class="loading mb-4"></div>
+                                <h3 class="text-lg font-medium text-gray-600 mb-2">正在加载PDF...</h3>
+                                <p class="text-gray-500">请稍候，正在处理您的文件</p>
+                            </div>
+
+                            <!-- 错误状态 -->
+                            <div id="error-state" class="hidden text-center py-16">
+                                <i class="bi bi-exclamation-triangle text-6xl text-red-300 mb-4"></i>
+                                <h3 class="text-xl font-medium text-red-600 mb-2">加载失败</h3>
+                                <p class="text-red-500 mb-4" id="error-message">PDF文件加载失败，请检查文件格式</p>
+                                <button id="retry-load" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                                    重试
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 使用说明 -->
+            <div class="mt-12 bg-blue-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4">
+                    <i class="bi bi-info-circle mr-2"></i>
+                    使用说明
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-blue-700">
+                    <div>
+                        <h4 class="font-medium mb-2">支持功能：</h4>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>在线预览PDF文档</li>
+                            <li>页面导航和跳转</li>
+                            <li>缩放控制（50%-200%）</li>
+                            <li>适应宽度显示</li>
+                            <li>下载和打印功能</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2">操作提示：</h4>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>支持拖拽上传PDF文件</li>
+                            <li>使用鼠标滚轮可快速缩放</li>
+                            <li>键盘方向键可翻页</li>
+                            <li>所有处理均在本地进行</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h4 class="font-medium text-yellow-800 mb-2">
+                        <i class="bi bi-exclamation-triangle mr-2"></i>
+                        注意事项
+                    </h4>
+                    <ul class="text-sm text-yellow-700 space-y-1">
+                        <li>• 建议文件大小不超过50MB，以确保良好的预览体验</li>
+                        <li>• 加密的PDF文件可能无法正常预览</li>
+                        <li>• 复杂的PDF文件可能需要较长的加载时间</li>
+                        <li>• 建议使用现代浏览器以获得最佳效果</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 引入脚本 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="../../assets/js/common.js"></script>
+    <script src="../../assets/js/navigation.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
