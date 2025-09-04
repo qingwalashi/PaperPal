@@ -7,6 +7,76 @@
     <link href="../../assets/css/tailwind.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <link href="../../assets/css/components.css" rel="stylesheet">
+    <style>
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .print-area, .print-area * {
+                visibility: visible;
+            }
+            .print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+            }
+        }
+        
+        .nameplate-page {
+            width: 210mm;
+            height: 297mm;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            position: relative;
+            page-break-after: always;
+        }
+        
+        .nameplate-item {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border: none;
+            box-sizing: border-box;
+        }
+        
+        .font-preview {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .font-preview:hover {
+            background-color: #f8fafc;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .font-preview.selected {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .font-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .font-sample {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+    </style>
 </head>
 <body class="bg-gray-50">
     <div class="main-content">
@@ -14,224 +84,164 @@
         <div class="page-header">
             <div class="container mx-auto px-4">
                 <div class="text-center">
-                    <h1 class="page-title">
-                        台签排版
-                    </h1>
-                    <p class="page-subtitle">快速制作会议台签、名牌等，支持批量生成</p>
+                    <h1 class="page-title">台签排版</h1>
+                    <p class="page-subtitle">快速制作会议台签、名牌等，支持批量生成和自定义样式</p>
                 </div>
             </div>
         </div>
 
         <!-- 主要内容 -->
-        <div class="container mx-auto px-4 py-8">
-            <!-- 功能开发中提示 -->
-            <div class="max-w-4xl mx-auto">
-                <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-8 text-center mb-8">
-                    <div class="mb-6">
-                        <i class="bi bi-tools text-6xl text-blue-500 mb-4"></i>
-                        <h2 class="text-3xl font-bold text-gray-800 mb-2">功能开发中</h2>
-                        <p class="text-lg text-gray-600">台签排版功能正在紧锣密鼓地开发中，敬请期待！</p>
-                    </div>
-                    
-                    <div class="bg-white rounded-lg p-6 shadow-lg">
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">即将推出的功能</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-                            <div class="space-y-3">
-                                <div class="flex items-start space-x-3">
-                                    <i class="bi bi-check-circle text-green-500 mt-1"></i>
-                                    <div>
-                                        <h4 class="font-medium text-gray-800">多种模板</h4>
-                                        <p class="text-sm text-gray-600">提供会议台签、桌牌、胸牌等多种预设模板</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start space-x-3">
-                                    <i class="bi bi-check-circle text-green-500 mt-1"></i>
-                                    <div>
-                                        <h4 class="font-medium text-gray-800">批量生成</h4>
-                                        <p class="text-sm text-gray-600">支持Excel导入，一键生成多个台签</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start space-x-3">
-                                    <i class="bi bi-check-circle text-green-500 mt-1"></i>
-                                    <div>
-                                        <h4 class="font-medium text-gray-800">自定义设计</h4>
-                                        <p class="text-sm text-gray-600">自由调整字体、颜色、尺寸等设计元素</p>
-                                    </div>
-                                </div>
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex gap-6" style="height: calc(100vh - 200px);">
+                <!-- 左侧输入区域 -->
+                <div class="flex-1">
+                    <div class="bg-white rounded-lg shadow-lg p-6 h-full">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800">
+                            <i class="bi bi-pencil-square mr-2"></i>输入名字
+                        </h2>
+                        
+                        <!-- 名字输入区域 -->
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <label for="names-input" class="text-sm font-medium text-gray-700">
+                                    输入名字（一行一个）
+                                </label>
+                                <button 
+                                    id="clear-names" 
+                                    class="text-red-500 hover:text-red-700 text-sm transition-colors px-2 py-1 rounded hover:bg-red-50"
+                                    title="清空所有名字"
+                                >
+                                    <i class="bi bi-trash mr-1"></i>清空
+                                </button>
                             </div>
-                            <div class="space-y-3">
-                                <div class="flex items-start space-x-3">
-                                    <i class="bi bi-check-circle text-green-500 mt-1"></i>
-                                    <div>
-                                        <h4 class="font-medium text-gray-800">多种格式</h4>
-                                        <p class="text-sm text-gray-600">支持PDF、PNG等多种输出格式</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start space-x-3">
-                                    <i class="bi bi-check-circle text-green-500 mt-1"></i>
-                                    <div>
-                                        <h4 class="font-medium text-gray-800">打印优化</h4>
-                                        <p class="text-sm text-gray-600">针对打印进行优化，确保最佳效果</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-start space-x-3">
-                                    <i class="bi bi-check-circle text-green-500 mt-1"></i>
-                                    <div>
-                                        <h4 class="font-medium text-gray-800">实时预览</h4>
-                                        <p class="text-sm text-gray-600">所见即所得的实时预览效果</p>
-                                    </div>
-                                </div>
+                            <textarea 
+                                id="names-input" 
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                style="height: calc(100vh - 450px);"
+                                placeholder="张三&#10;李四&#10;王五"
+                            ></textarea>
+                            <p class="text-xs text-gray-500 mt-2">每行输入一个名字，支持自动去重</p>
+                        </div>
+
+                        <!-- 操作按钮 -->
+                        <div class="mt-auto">
+                            <div class="grid grid-cols-1 gap-2">
+                                <button 
+                                    id="download-btn" 
+                                    class="bg-blue-500 text-white py-2 px-3 rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                                    disabled
+                                >
+                                    <i class="bi bi-download mr-1"></i><span id="download-btn-text">下载</span>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- 功能预览 -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                    <!-- 模板预览 -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                            <i class="bi bi-layout-text-window mr-2"></i>
-                            模板预览
-                        </h3>
-                        <div class="space-y-4">
-                            <!-- 会议台签模板 -->
-                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
-                                <div class="text-center">
-                                    <div class="bg-white rounded-lg p-4 shadow-sm inline-block">
-                                        <h4 class="text-lg font-bold text-gray-800">张三</h4>
-                                        <p class="text-sm text-gray-600">产品经理</p>
-                                        <p class="text-xs text-gray-500">科技有限公司</p>
-                                    </div>
-                                    <p class="text-sm text-gray-600 mt-2">会议台签模板</p>
-                                </div>
-                            </div>
+                <!-- 中间预览区域 -->
+                <div class="flex-[2]">
+                    <div class="bg-white rounded-lg shadow-lg p-6 h-full">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold text-gray-800">
+                                <i class="bi bi-eye mr-2"></i>预览区域
+                            </h2>
                             
-                            <!-- 胸牌模板 -->
-                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
-                                <div class="text-center">
-                                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-3 inline-block">
-                                        <h4 class="text-base font-bold">李四</h4>
-                                        <p class="text-xs">技术总监</p>
-                                    </div>
-                                    <p class="text-sm text-gray-600 mt-2">胸牌模板</p>
+                            <!-- 分页控件 -->
+                            <div class="flex items-center space-x-3">
+                                <button 
+                                    id="prev-page" 
+                                    class="px-3 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                                    disabled
+                                >
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <span id="page-info" class="text-sm text-gray-600 min-w-24 text-center">
+                                    第 1 页，共 1 页
+                                </span>
+                                <button 
+                                    id="next-page" 
+                                    class="px-3 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                                    disabled
+                                >
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                                
+                                <!-- 缩放控件 -->
+                                <div class="flex items-center space-x-1 ml-4">
+                                    <button id="zoom-out" class="px-2 py-1 text-gray-500 hover:text-gray-700 transition-colors" title="缩小">
+                                        <i class="bi bi-zoom-out"></i>
+                                    </button>
+                                    <button id="zoom-in" class="px-2 py-1 text-gray-500 hover:text-gray-700 transition-colors" title="放大">
+                                        <i class="bi bi-zoom-in"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- 功能演示 -->
-                    <div class="bg-white rounded-lg shadow-lg p-6">
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                            <i class="bi bi-play-circle mr-2"></i>
-                            功能演示
-                        </h3>
-                        <div class="space-y-4">
-                            <div class="bg-gray-50 rounded-lg p-4">
-                                <h4 class="font-medium text-gray-800 mb-2">1. 选择模板</h4>
-                                <p class="text-sm text-gray-600">从多种预设模板中选择适合的样式</p>
-                            </div>
-                            <div class="bg-gray-50 rounded-lg p-4">
-                                <h4 class="font-medium text-gray-800 mb-2">2. 输入信息</h4>
-                                <p class="text-sm text-gray-600">手动输入或批量导入参会人员信息</p>
-                            </div>
-                            <div class="bg-gray-50 rounded-lg p-4">
-                                <h4 class="font-medium text-gray-800 mb-2">3. 自定义设计</h4>
-                                <p class="text-sm text-gray-600">调整字体、颜色、布局等设计元素</p>
-                            </div>
-                            <div class="bg-gray-50 rounded-lg p-4">
-                                <h4 class="font-medium text-gray-800 mb-2">4. 生成下载</h4>
-                                <p class="text-sm text-gray-600">一键生成所有台签并下载打印</p>
-                            </div>
+                        
+                        <div id="preview-container" class="border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center" style="height: calc(100% - 60px);">
+                            <!-- 默认显示空白A4纸 -->
                         </div>
                     </div>
                 </div>
 
-                <!-- 开发进度 -->
-                <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
-                        <i class="bi bi-graph-up mr-2"></i>
-                        开发进度
-                    </h3>
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">基础框架搭建</span>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-32 bg-gray-200 rounded-full h-2">
-                                    <div class="bg-green-500 h-2 rounded-full" style="width: 100%"></div>
-                                </div>
-                                <span class="text-sm text-green-600 font-medium">100%</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">模板设计系统</span>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-32 bg-gray-200 rounded-full h-2">
-                                    <div class="bg-blue-500 h-2 rounded-full" style="width: 60%"></div>
-                                </div>
-                                <span class="text-sm text-blue-600 font-medium">60%</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">批量处理功能</span>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-32 bg-gray-200 rounded-full h-2">
-                                    <div class="bg-yellow-500 h-2 rounded-full" style="width: 30%"></div>
-                                </div>
-                                <span class="text-sm text-yellow-600 font-medium">30%</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-gray-700">导出打印功能</span>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-32 bg-gray-200 rounded-full h-2">
-                                    <div class="bg-gray-400 h-2 rounded-full" style="width: 10%"></div>
-                                </div>
-                                <span class="text-sm text-gray-600 font-medium">10%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 预约通知 -->
-                <div class="bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg p-6 text-white text-center">
-                    <h3 class="text-xl font-semibold mb-2">
-                        <i class="bi bi-bell mr-2"></i>
-                        预约通知
-                    </h3>
-                    <p class="mb-4">想第一时间体验台签排版功能？留下您的邮箱，我们会在功能上线时通知您！</p>
-                    <div class="max-w-md mx-auto">
-                        <div class="flex space-x-2">
+                <!-- 右侧字体选择区域 -->
+                <div class="flex-1">
+                    <div class="bg-white rounded-lg shadow-lg p-6 h-full">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800">
+                            <i class="bi bi-fonts mr-2"></i>字体设置
+                        </h2>
+                        
+                        <!-- 字体大小控制 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                字体大小：<span id="font-size-display" class="text-blue-600 font-semibold">24px</span>
+                            </label>
                             <input 
-                                type="email" 
-                                id="notification-email" 
-                                placeholder="请输入您的邮箱地址" 
-                                class="flex-1 px-4 py-2 rounded-lg text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white"
+                                type="range" 
+                                id="font-size-slider" 
+                                min="16" 
+                                max="56" 
+                                step="2" 
+                                value="24" 
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                             >
-                            <button 
-                                id="subscribe-btn" 
-                                class="px-6 py-2 bg-white text-purple-600 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-                            >
-                                订阅
-                            </button>
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>16px</span>
+                                <span>32px</span>
+                                <span>56px</span>
+                            </div>
                         </div>
-                        <p class="text-sm mt-2 opacity-90">我们承诺不会发送垃圾邮件，仅用于功能更新通知</p>
-                    </div>
-                </div>
 
-                <!-- 联系我们 -->
-                <div class="mt-8 text-center">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-2">有建议或需求？</h3>
-                    <p class="text-gray-600 mb-4">我们很乐意听取您的意见，帮助我们打造更好的产品</p>
-                    <div class="flex justify-center space-x-4">
-                        <button class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                            <i class="bi bi-envelope mr-2"></i>
-                            发送邮件
-                        </button>
-                        <button class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                            <i class="bi bi-chat-dots mr-2"></i>
-                            在线反馈
-                        </button>
+                        <!-- 字体选择 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-3">选择字体</label>
+                            <div class="space-y-3">
+                                <div class="font-preview selected" data-font="SimHei">
+                                    <div class="font-name">黑体</div>
+                                    <div class="font-sample" id="sample-SimHei" style="font-family: 'SimHei', '黑体', sans-serif;">张三</div>
+                                </div>
+                                <div class="font-preview" data-font="SimSun">
+                                    <div class="font-name">宋体</div>
+                                    <div class="font-sample" id="sample-SimSun" style="font-family: 'SimSun', '宋体', serif;">张三</div>
+                                </div>
+                                <div class="font-preview" data-font="KaiTi">
+                                    <div class="font-name">楷体</div>
+                                    <div class="font-sample" id="sample-KaiTi" style="font-family: 'KaiTi', '楷体', serif;">张三</div>
+                                </div>
+                                <div class="font-preview" data-font="FangSong">
+                                    <div class="font-name">仿宋</div>
+                                    <div class="font-sample" id="sample-FangSong" style="font-family: 'FangSong', '仿宋', serif;">张三</div>
+                                </div>
+                                <div class="font-preview" data-font="Microsoft YaHei">
+                                    <div class="font-name">微软雅黑</div>
+                                    <div class="font-sample" id="sample-Microsoft-YaHei" style="font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;">张三</div>
+                                </div>
+                                <div class="font-preview" data-font="Arial">
+                                    <div class="font-name">Arial</div>
+                                    <div class="font-sample" id="sample-Arial" style="font-family: 'Arial', sans-serif;">Zhang San</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -241,6 +251,9 @@
     <!-- 引入脚本 -->
     <script src="../../assets/js/common.js"></script>
     <script src="../../assets/js/navigation.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

@@ -3,50 +3,673 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeNameplate();
 });
 
+// 全局变量
+let nameplateData = {
+    names: [],
+    pages: [],
+    currentPage: 0,
+    selectedFont: 'SimHei',
+    fontSize: 24,
+    zoomLevel: 1.0,
+    panX: 0,
+    panY: 0,
+    _isDragging: false,
+    _dragStartX: 0,
+    _dragStartY: 0,
+    _panStartX: 0,
+    _panStartY: 0,
+    _onMouseMove: null,
+    _onMouseUp: null
+};
+
 function initializeNameplate() {
     // 设置导航活动项
     if (window.navigation) {
         window.navigation.updateActiveNavItem('nameplate');
     }
 
-    // 初始化订阅功能
-    initializeSubscription();
+    // 初始化事件监听器
+    initializeEventListeners();
     
-    // 初始化反馈功能
-    initializeFeedback();
-    
-    // 添加页面交互效果
-    addInteractiveEffects();
+    // 初始化字体选择器
+    initializeFontSelector();
+
+    // 初始化渲染空状态
+    renderCurrentPage();
+    updatePaginationControls();
+
+    // 监听窗口尺寸变化，自动适配预览高度
+    window.addEventListener('resize', debounce(() => {
+        autoFitPreview();
+    }, 150));
 }
 
-// 初始化订阅功能
-function initializeSubscription() {
-    const emailInput = document.getElementById('notification-email');
-    const subscribeBtn = document.getElementById('subscribe-btn');
+// 初始化事件监听器
+function initializeEventListeners() {
+    // 名字输入框变化
+    const namesInput = document.getElementById('names-input');
+    namesInput.addEventListener('input', handleNamesInput);
     
-    if (!emailInput || !subscribeBtn) return;
+    // 字体大小滑块
+    const fontSizeSlider = document.getElementById('font-size-slider');
+    fontSizeSlider.addEventListener('input', handleFontSizeChange);
     
-    subscribeBtn.addEventListener('click', handleSubscription);
+    // 按钮事件（去除“生成台签”按钮绑定，输入即生成）
+    document.getElementById('download-btn').addEventListener('click', handleDownload);
     
-    emailInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleSubscription();
-        }
-    });
+    // 清空名字按钮
+    document.getElementById('clear-names').addEventListener('click', clearAllNames);
     
-    // 邮箱格式验证
-    emailInput.addEventListener('input', (e) => {
-        const email = e.target.value;
-        const isValid = validateEmail(email);
+    // 分页按钮
+    document.getElementById('prev-page').addEventListener('click', () => changePage(-1));
+    document.getElementById('next-page').addEventListener('click', () => changePage(1));
+    
+    // 缩放按钮
+    document.getElementById('zoom-in').addEventListener('click', () => zoomPreview(1.1));
+    document.getElementById('zoom-out').addEventListener('click', () => zoomPreview(0.9));
+    
+    // 键盘快捷键
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+}
+
+// 初始化字体选择器
+function initializeFontSelector() {
+    const fontPreviews = document.querySelectorAll('.font-preview');
+    fontPreviews.forEach(preview => {
+        preview.addEventListener('click', function() {
+            // 移除其他选中状态
+            fontPreviews.forEach(p => p.classList.remove('selected'));
+            // 添加选中状态
+            this.classList.add('selected');
+            // 更新选中字体
+            nameplateData.selectedFont = this.dataset.font;
+            
+            // 实时字体预览效果
+            if (window.CommonUtils) {
+                CommonUtils.showNotification(`已选择字体：${this.querySelector('.font-name').textContent}`, 'info');
+            }
+            
+            // 如果已生成台签，实时重新生成预览
+            if (nameplateData.pages.length > 0) {
+                generateNameplates(true);
+            }
+        });
         
-        if (email && !isValid) {
-            emailInput.classList.add('border-red-300');
-            emailInput.classList.remove('border-gray-300');
-        } else {
-            emailInput.classList.remove('border-red-300');
-            emailInput.classList.add('border-gray-300');
+        // 添加悬停预览效果
+        preview.addEventListener('mouseenter', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1.02)';
+                this.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+            }
+        });
+        
+        preview.addEventListener('mouseleave', function() {
+            if (!this.classList.contains('selected')) {
+                this.style.transform = 'scale(1)';
+                this.style.boxShadow = '';
+            }
+        });
+    });
+}
+
+// 处理名字输入
+function handleNamesInput() {
+    const namesInput = document.getElementById('names-input');
+    const rawNames = namesInput.value.split('\n');
+    
+    // 过滤空行并清理空格，保持原有顺序
+    const names = rawNames
+        .map(name => name.trim())
+        .filter(name => name !== '' && name.length > 0);
+    
+    // 去重处理，保持第一次出现的顺序
+    const uniqueNames = [];
+    const seenNames = new Set();
+    names.forEach(name => {
+        if (!seenNames.has(name)) {
+            uniqueNames.push(name);
+            seenNames.add(name);
         }
     });
+    
+    nameplateData.names = uniqueNames;
+    updateFontSamples();
+    
+    // 实时预览：输入即生成/更新
+    if (uniqueNames.length > 0) {
+        generateNameplates();
+    } else {
+        // 如果没有名字，清空预览
+        nameplateData.pages = [];
+        nameplateData.currentPage = 0;
+        renderCurrentPage();
+        updatePaginationControls();
+        // 禁用下载按钮
+        document.getElementById('download-btn').disabled = true;
+        updateDownloadButtonText();
+    }
+}
+
+// 处理字体大小变化
+function handleFontSizeChange() {
+    const fontSizeSlider = document.getElementById('font-size-slider');
+    const fontSizeDisplay = document.getElementById('font-size-display');
+    nameplateData.fontSize = parseInt(fontSizeSlider.value);
+    fontSizeDisplay.textContent = nameplateData.fontSize + 'px';
+    
+    // 实时更新字体预览样本
+    updateFontSamples();
+    
+    // 如果已生成台签，实时重新生成预览
+    if (nameplateData.pages.length > 0) {
+        generateNameplates(true);
+    }
+}
+
+// 生成台签
+function generateNameplates(silent = false) {
+    if (nameplateData.names.length === 0) {
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('请先输入名字！', 'warning');
+        } else {
+            alert('请先输入名字！');
+        }
+        return;
+    }
+    
+    // 每页1个名字（上下对称显示同一个名字）
+    const namesPerPage = 1;
+    nameplateData.pages = [];
+    
+    // 分页处理
+    for (let i = 0; i < nameplateData.names.length; i += namesPerPage) {
+        const pageNames = nameplateData.names.slice(i, i + namesPerPage);
+        nameplateData.pages.push(pageNames);
+    }
+    
+    // 重置当前页
+    nameplateData.currentPage = 0;
+    
+    // 生成预览
+    renderCurrentPage();
+    // 自适应预览高度到屏幕
+    autoFitPreview();
+    
+    // 启用按钮并更新文本
+    updateDownloadButton();
+    
+    // 更新分页控件
+    updatePaginationControls();
+    
+    if (!silent && window.CommonUtils) {
+        CommonUtils.showNotification(`成功生成 ${nameplateData.pages.length} 页台签！`, 'success');
+    }
+}
+
+// 渲染当前页
+function renderCurrentPage() {
+    const previewContainer = document.getElementById('preview-container');
+    
+    if (nameplateData.pages.length === 0) {
+        // 显示空白A4纸
+        const emptyPageHTML = createEmptyA4Page();
+        previewContainer.innerHTML = emptyPageHTML;
+        autoFitPreview();
+        enableCanvasPan();
+        return;
+    }
+    
+    const currentPageNames = nameplateData.pages[nameplateData.currentPage];
+    
+    // 创建A4页面
+    const pageHTML = createNameplatePage(currentPageNames, nameplateData.currentPage);
+    previewContainer.innerHTML = pageHTML;
+    // 初次渲染后自适应
+    autoFitPreview();
+    // 启用画布拖拽
+    enableCanvasPan();
+}
+
+// 创建台签页面HTML
+function createNameplatePage(names, pageIndex) {
+    const fontFamily = getFontFamily(nameplateData.selectedFont);
+    const fontSize = nameplateData.fontSize;
+    
+    let nameplateItems = '';
+    
+    // 上半部分台签（正向）- A4纵向中轴线对称
+    if (names[0]) {
+        nameplateItems += `
+            <div class="nameplate-item" style="
+                top: 35mm;
+                left: 15mm;
+                width: 180mm;
+                height: 80mm;
+                font-family: ${fontFamily};
+                font-size: ${fontSize}px;
+                font-weight: bold;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            ">
+                <div style="
+                    text-align: center;
+                    word-wrap: break-word;
+                    line-height: 1.3;
+                    max-width: 90%;
+                    overflow: hidden;
+                    color: #1a1a1a;
+                ">
+                    ${escapeHtml(names[0])}
+                </div>
+            </div>
+        `;
+    }
+    
+    // 下半部分台签（倒置）- 与上半部分相同名字
+    if (names[0]) {
+        nameplateItems += `
+            <div class="nameplate-item" style="
+                bottom: 35mm;
+                left: 15mm;
+                width: 180mm;
+                height: 80mm;
+                font-family: ${fontFamily};
+                font-size: ${fontSize}px;
+                font-weight: bold;
+                transform: rotate(180deg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            ">
+                <div style="
+                    text-align: center;
+                    word-wrap: break-word;
+                    line-height: 1.3;
+                    max-width: 90%;
+                    overflow: hidden;
+                    color: #1a1a1a;
+                ">
+                    ${escapeHtml(names[0])}
+                </div>
+            </div>
+        `;
+    }
+    
+    // 中轴线（仅预览时显示）- 增强视觉效果
+    const centerLine = `
+        <div class="center-line" style="
+            position: absolute;
+            top: 50%;
+            left: 5mm;
+            right: 5mm;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, #ccc 10%, #666 50%, #ccc 90%, transparent 100%);
+            border-top: 1px dashed #999;
+            opacity: 0.7;
+            z-index: 10;
+            transform: translateY(-0.5px);
+        "></div>
+        <div class="fold-indicators" style="
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            z-index: 11;
+        ">
+            <div class="fold-indicator-left" style="
+                position: absolute;
+                left: 3mm;
+                top: -3px;
+                width: 6px;
+                height: 6px;
+                background: #666;
+                border-radius: 50%;
+                opacity: 0.8;
+            "></div>
+            <div class="fold-indicator-right" style="
+                position: absolute;
+                right: 3mm;
+                top: -3px;
+                width: 6px;
+                height: 6px;
+                background: #666;
+                border-radius: 50%;
+                opacity: 0.8;
+            "></div>
+        </div>
+        <div class="fold-text" style="
+            position: absolute;
+            top: calc(50% + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #666;
+            font-family: Arial, sans-serif;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            opacity: 0.9;
+        ">中轴线对称折叠</div>
+    `;
+    
+    return `
+        <div class="nameplate-page print-area" data-page="${pageIndex}" style="
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        ">
+            ${nameplateItems}
+            ${centerLine}
+        </div>
+    `;
+}
+
+// 获取字体族
+function getFontFamily(fontName) {
+    const fontMap = {
+        'SimHei': "SimHei, '黑体', sans-serif",
+        'SimSun': "SimSun, '宋体', serif",
+        'KaiTi': "KaiTi, '楷体', serif",
+        'FangSong': "FangSong, '仿宋', serif",
+        'Microsoft YaHei': "'Microsoft YaHei', '微软雅黑', sans-serif",
+        'Arial': "Arial, sans-serif"
+    };
+    return fontMap[fontName] || fontMap['SimHei'];
+}
+
+// HTML转义函数
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 更新字体预览样本
+function updateFontSamples() {
+    const firstNameInput = nameplateData.names.length > 0 ? nameplateData.names[0] : '张三';
+
+    // 更新所有字体预览样本
+    const samples = document.querySelectorAll('.font-sample');
+    samples.forEach(sample => {
+        // 对于Arial字体，显示英文
+        if (sample.id === 'sample-Arial') {
+            sample.textContent = firstNameInput.replace(/[\u4e00-\u9fff]/g, 'Zhang San');
+        } else {
+            sample.textContent = firstNameInput;
+        }
+
+        // 字体选择区的文字大小保持固定为16px，不受滑块影响
+        sample.style.fontSize = '16px';
+
+        // 确保字体样式正确应用
+        const fontData = sample.parentElement.dataset.font;
+        if (fontData) {
+            sample.style.fontFamily = getFontFamily(fontData);
+        }
+    });
+}
+
+// 简单的中文名转英文名（示例用）
+function convertToEnglish(chineseName) {
+    const nameMap = {
+        '张三': 'Zhang San',
+        '李四': 'Li Si',
+        '王五': 'Wang Wu',
+        '赵六': 'Zhao Liu',
+        '陈七': 'Chen Qi',
+        '刘八': 'Liu Ba'
+    };
+    return nameMap[chineseName] || chineseName;
+}
+
+// 统计信息模块已移除，无需更新
+
+// 更新分页控件
+function updatePaginationControls() {
+    const prevBtn = document.getElementById('prev-page');
+    const nextBtn = document.getElementById('next-page');
+    const pageInfo = document.getElementById('page-info');
+    
+    if (nameplateData.pages.length === 0) {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        pageInfo.textContent = '第 0 页，共 0 页';
+        return;
+    }
+    
+    prevBtn.disabled = nameplateData.currentPage === 0;
+    nextBtn.disabled = nameplateData.currentPage === nameplateData.pages.length - 1;
+    pageInfo.textContent = `第 ${nameplateData.currentPage + 1} 页，共 ${nameplateData.pages.length} 页`;
+}
+
+// 切换页面
+function changePage(direction) {
+    const newPage = nameplateData.currentPage + direction;
+    if (newPage >= 0 && newPage < nameplateData.pages.length) {
+        nameplateData.currentPage = newPage;
+        renderCurrentPage();
+        updatePaginationControls();
+        autoFitPreview();
+    }
+}
+
+// 切换预览模式
+function togglePreview() {
+    const previewBtn = document.getElementById('preview-btn');
+    const previewContainer = document.getElementById('preview-container');
+    
+    if (previewBtn.textContent.includes('预览效果')) {
+        // 进入全屏预览模式
+        previewContainer.style.position = 'fixed';
+        previewContainer.style.top = '0';
+        previewContainer.style.left = '0';
+        previewContainer.style.width = '100vw';
+        previewContainer.style.height = '100vh';
+        previewContainer.style.backgroundColor = 'white';
+        previewContainer.style.zIndex = '9999';
+        previewContainer.style.overflow = 'auto';
+        
+        previewBtn.innerHTML = '<i class="bi bi-x-lg mr-2"></i>退出预览';
+        previewBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+        previewBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+    } else {
+        // 退出全屏预览模式
+        previewContainer.style.position = '';
+        previewContainer.style.top = '';
+        previewContainer.style.left = '';
+        previewContainer.style.width = '';
+        previewContainer.style.height = '';
+        previewContainer.style.backgroundColor = '';
+        previewContainer.style.zIndex = '';
+        previewContainer.style.overflow = '';
+        
+        previewBtn.innerHTML = '<i class="bi bi-eye mr-2"></i>预览效果';
+        previewBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+        previewBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+    }
+}
+// 预览按钮已移除
+
+// 下载单页
+async function downloadSinglePage() {
+    if (nameplateData.pages.length === 0) {
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('请先生成台签！', 'warning');
+        }
+        return;
+    }
+    
+    try {
+        // 显示下载进度
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('正在生成PDF，请稍候...', 'info');
+        }
+        
+        const pageElement = document.querySelector('.nameplate-page');
+        if (!pageElement) return;
+        
+        // 临时隐藏中轴线和折叠指示器（仅用于预览）
+        const centerLine = pageElement.querySelector('.center-line');
+        const foldIndicators = pageElement.querySelector('.fold-indicators');
+        const foldText = pageElement.querySelector('.fold-text');
+        
+        if (centerLine) centerLine.style.display = 'none';
+        if (foldIndicators) foldIndicators.style.display = 'none';
+        if (foldText) foldText.style.display = 'none';
+        
+        // 使用html2canvas生成图片
+        const canvas = await html2canvas(pageElement, {
+            scale: 3, // 提高分辨率
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            allowTaint: false
+        });
+        
+        // 恢复中轴线显示
+        if (centerLine) centerLine.style.display = '';
+        if (foldIndicators) foldIndicators.style.display = '';
+        if (foldText) foldText.style.display = '';
+        
+        // 转换为PDF
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        const imgData = canvas.toDataURL('image/png', 0.95);
+        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+        
+        // 生成文件名
+        const currentPageNames = nameplateData.pages[nameplateData.currentPage];
+        const namesPart = (currentPageNames[0] || '').substring(0, 20);
+        const fileName = `台签_${namesPart}_第${nameplateData.currentPage + 1}页.pdf`;
+        
+        pdf.save(fileName);
+        
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('单页下载成功！', 'success');
+        }
+    } catch (error) {
+        console.error('下载失败:', error);
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('下载失败，请重试！', 'error');
+        }
+    }
+}
+
+// 批量下载所有页面
+async function downloadAllPages() {
+    if (nameplateData.pages.length === 0) {
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('请先生成台签！', 'warning');
+        }
+        return;
+    }
+    
+    try {
+        const zip = new JSZip();
+        const { jsPDF } = window.jspdf;
+        const originalPage = nameplateData.currentPage;
+        
+        // 显示进度提示
+        if (window.CommonUtils) {
+            CommonUtils.showNotification(`正在生成 ${nameplateData.pages.length} 个PDF文件，请稍候...`, 'info');
+        }
+        
+        // 为每页生成PDF
+        for (let i = 0; i < nameplateData.pages.length; i++) {
+            // 更新进度
+            if (window.CommonUtils && i > 0) {
+                CommonUtils.showNotification(`正在处理第 ${i + 1}/${nameplateData.pages.length} 页...`, 'info');
+            }
+            
+            // 切换到当前页
+            nameplateData.currentPage = i;
+            renderCurrentPage();
+            
+            // 等待渲染完成
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            const pageElement = document.querySelector('.nameplate-page');
+            if (!pageElement) continue;
+            
+            // 临时隐藏预览元素
+            const centerLine = pageElement.querySelector('.center-line');
+            const foldIndicators = pageElement.querySelector('.fold-indicators');
+            const foldText = pageElement.querySelector('.fold-text');
+            
+            if (centerLine) centerLine.style.display = 'none';
+            if (foldIndicators) foldIndicators.style.display = 'none';
+            if (foldText) foldText.style.display = 'none';
+            
+            // 生成canvas
+            const canvas = await html2canvas(pageElement, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                allowTaint: false
+            });
+            
+            // 恢复预览元素
+            if (centerLine) centerLine.style.display = '';
+            if (foldIndicators) foldIndicators.style.display = '';
+            if (foldText) foldText.style.display = '';
+            
+            // 转换为PDF
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgData = canvas.toDataURL('image/png', 0.95);
+            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+            
+            // 生成文件名
+            const pageNames = nameplateData.pages[i];
+            const namesPart = (pageNames[0] || '').substring(0, 20);
+            const fileName = `台签_${namesPart}_第${i + 1}页.pdf`;
+            
+            // 添加到ZIP
+            const pdfBlob = pdf.output('blob');
+            zip.file(fileName, pdfBlob);
+        }
+        
+        // 生成ZIP文件
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('正在打包文件...', 'info');
+        }
+        
+        const zipBlob = await zip.generateAsync({ 
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        });
+        
+        // 下载ZIP
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zipBlob);
+        const timestamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-');
+        link.download = `台签批量下载_${timestamp}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // 恢复到原始页面
+        nameplateData.currentPage = originalPage;
+        renderCurrentPage();
+        updatePaginationControls();
+        
+        if (window.CommonUtils) {
+            CommonUtils.showNotification(`批量下载成功！共 ${nameplateData.pages.length} 个文件`, 'success');
+        }
+    } catch (error) {
+        console.error('批量下载失败:', error);
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('批量下载失败，请重试！', 'error');
+        }
+        
+        // 恢复到原始页面
+        nameplateData.currentPage = originalPage || 0;
+        renderCurrentPage();
+        updatePaginationControls();
+    }
 }
 
 // 处理订阅
@@ -471,3 +1094,325 @@ const rippleCSS = `
 `;
 
 document.head.insertAdjacentHTML('beforeend', rippleCSS);
+
+// 清空所有名字
+function clearAllNames() {
+    const namesInput = document.getElementById('names-input');
+    namesInput.value = '';
+    nameplateData.names = [];
+    nameplateData.pages = [];
+    nameplateData.currentPage = 0;
+    
+    // 更新界面
+    updateFontSamples();
+    renderCurrentPage();
+    updatePaginationControls();
+    
+    // 禁用按钮
+    document.getElementById('download-btn').disabled = true;
+    updateDownloadButtonText();
+    
+    if (window.CommonUtils) {
+        CommonUtils.showNotification('已清空所有名字', 'info');
+    }
+    
+    // 聚焦到输入框
+    namesInput.focus();
+}
+
+// 缩放预览
+function zoomPreview(factor) {
+    nameplateData.zoomLevel *= factor;
+    
+    // 限制缩放范围
+    if (nameplateData.zoomLevel < 0.3) {
+        nameplateData.zoomLevel = 0.3;
+        return;
+    }
+    if (nameplateData.zoomLevel > 2.0) {
+        nameplateData.zoomLevel = 2.0;
+        return;
+    }
+    
+    applyPreviewTransform();
+}
+
+// 根据可用屏幕高度自适配预览缩放
+function autoFitPreview() {
+    const previewContainer = document.getElementById('preview-container');
+    const pageEl = previewContainer.querySelector('.nameplate-page');
+    if (!pageEl) return;
+    
+    // 计算预览容器可用空间（宽高）
+    const rect = previewContainer.getBoundingClientRect();
+    const paddingV = 24; // 上下预留
+    const paddingH = 24; // 左右预留
+    const availableHeight = Math.max(200, window.innerHeight - rect.top - paddingV);
+    const availableWidth = Math.max(200, rect.width - paddingH);
+
+    // 实际页面渲染尺寸（像素）
+    const pageHeight = pageEl.offsetHeight || 1;
+    const pageWidth = pageEl.offsetWidth || 1;
+
+    // 等比缩放，取宽高最小比值
+    let scaleH = availableHeight / pageHeight;
+    let scaleW = availableWidth / pageWidth;
+    let scale = Math.min(scaleH, scaleW);
+    // 限制缩放范围
+    scale = Math.max(0.3, Math.min(scale, 1.0));
+
+    nameplateData.zoomLevel = scale;
+    // 重置平移，默认在容器中水平/垂直居中显示
+    const containerWidth = rect.width;
+    const scaledWidth = pageWidth * scale;
+    const scaledHeight = pageHeight * scale;
+    nameplateData.panX = Math.floor((containerWidth - scaledWidth) / 2);
+    nameplateData.panY = Math.floor((availableHeight - scaledHeight) / 2);
+    applyPreviewTransform();
+
+    // 固定容器高度并隐藏滚动条，保证无滚轮一屏显示
+    previewContainer.style.height = `${Math.floor(availableHeight)}px`;
+    previewContainer.style.overflow = 'hidden';
+}
+
+// 统一应用缩放与平移
+function applyPreviewTransform() {
+    const previewContainer = document.getElementById('preview-container');
+    const pageEl = previewContainer.querySelector('.nameplate-page');
+    if (!pageEl) return;
+    
+    pageEl.style.transform = `translate(${nameplateData.panX}px, ${nameplateData.panY}px) scale(${nameplateData.zoomLevel})`;
+    pageEl.style.transformOrigin = 'center center';
+    pageEl.style.transition = nameplateData._isDragging ? 'none' : 'transform 0.2s ease-out';
+    
+    // 拖拽时的视觉反馈
+    pageEl.style.cursor = nameplateData._isDragging ? 'grabbing' : 'grab';
+    // 禁止选择文本，避免拖拽时选中文本
+    pageEl.style.userSelect = 'none';
+    
+    // 拖拽时添加阴影效果
+    if (nameplateData._isDragging) {
+        pageEl.style.boxShadow = '0 8px 25px rgba(0,0,0,0.2)';
+    } else {
+        pageEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+    }
+}
+
+// 启用画布拖拽（平移）
+function enableCanvasPan() {
+    const previewContainer = document.getElementById('preview-container');
+    const pageEl = previewContainer.querySelector('.nameplate-page');
+    if (!pageEl) return;
+
+    // 确保指针样式
+    pageEl.style.cursor = 'grab';
+
+    const onMouseDown = (e) => {
+        nameplateData._isDragging = true;
+        nameplateData._dragStartX = e.clientX;
+        nameplateData._dragStartY = e.clientY;
+        nameplateData._panStartX = nameplateData.panX;
+        nameplateData._panStartY = nameplateData.panY;
+        applyPreviewTransform();
+        e.preventDefault();
+    };
+
+    const onMouseMove = (e) => {
+        if (!nameplateData._isDragging) return;
+        const dx = e.clientX - nameplateData._dragStartX;
+        const dy = e.clientY - nameplateData._dragStartY;
+        
+        // 计算新的平移位置
+        const newPanX = nameplateData._panStartX + dx;
+        const newPanY = nameplateData._panStartY + dy;
+        
+        // 获取容器和页面尺寸
+        const previewContainer = document.getElementById('preview-container');
+        const pageEl = previewContainer.querySelector('.nameplate-page');
+        if (!pageEl) return;
+        
+        const containerRect = previewContainer.getBoundingClientRect();
+        const pageWidth = pageEl.offsetWidth * nameplateData.zoomLevel;
+        const pageHeight = pageEl.offsetHeight * nameplateData.zoomLevel;
+        
+        // 计算边界限制
+        const minPanX = Math.min(0, containerRect.width - pageWidth);
+        const maxPanX = Math.max(0, containerRect.width - pageWidth);
+        const minPanY = Math.min(0, containerRect.height - pageHeight);
+        const maxPanY = Math.max(0, containerRect.height - pageHeight);
+        
+        // 限制平移范围
+        nameplateData.panX = Math.max(minPanX, Math.min(maxPanX, newPanX));
+        nameplateData.panY = Math.max(minPanY, Math.min(maxPanY, newPanY));
+        
+        applyPreviewTransform();
+    };
+
+    const onMouseUp = () => {
+        if (!nameplateData._isDragging) return;
+        nameplateData._isDragging = false;
+        applyPreviewTransform();
+    };
+
+    // 先清理旧的全局监听，避免重复绑定
+    if (nameplateData._onMouseMove) {
+        window.removeEventListener('mousemove', nameplateData._onMouseMove);
+    }
+    if (nameplateData._onMouseUp) {
+        window.removeEventListener('mouseup', nameplateData._onMouseUp);
+    }
+
+    // 绑定到容器而非document，避免影响其他区域
+    pageEl.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    nameplateData._onMouseMove = onMouseMove;
+    nameplateData._onMouseUp = onMouseUp;
+
+    // 清理旧监听，防止重复绑定（通过替换节点已清理，但保险处理）
+    pageEl.addEventListener('mouseleave', () => {
+        if (nameplateData._isDragging) {
+            nameplateData._isDragging = false;
+            applyPreviewTransform();
+        }
+    });
+}
+
+// 简单防抖函数
+function debounce(fn, delay) {
+    let timer = null;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+    };
+}
+
+// 处理下载按钮点击
+function handleDownload() {
+    if (nameplateData.names.length === 1) {
+        // 单个名字，下载单张
+        downloadSinglePage();
+    } else {
+        // 多个名字，批量下载
+        downloadAllPages();
+    }
+}
+
+// 更新下载按钮状态和文本
+function updateDownloadButton() {
+    const downloadBtn = document.getElementById('download-btn');
+    downloadBtn.disabled = false;
+    updateDownloadButtonText();
+}
+
+// 更新下载按钮文本
+function updateDownloadButtonText() {
+    const downloadBtnText = document.getElementById('download-btn-text');
+    const downloadBtn = document.getElementById('download-btn');
+    
+    if (nameplateData.names.length === 0) {
+        downloadBtnText.textContent = '下载';
+        downloadBtn.querySelector('i').className = 'bi bi-download mr-1';
+    } else if (nameplateData.names.length === 1) {
+        downloadBtnText.textContent = '单张下载';
+        downloadBtn.querySelector('i').className = 'bi bi-download mr-1';
+    } else {
+        downloadBtnText.textContent = '批量下载';
+        downloadBtn.querySelector('i').className = 'bi bi-archive mr-1';
+    }
+}
+
+// 创建空白A4页面
+function createEmptyA4Page() {
+    // 优化的中轴线（仅预览时显示）
+    const centerLine = `
+        <div class="center-line" style="
+            position: absolute;
+            top: 50%;
+            left: 5mm;
+            right: 5mm;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, #ddd 10%, #999 50%, #ddd 90%, transparent 100%);
+            transform: translateY(-0.5px);
+            z-index: 10;
+            opacity: 0.8;
+        "></div>
+        <div class="fold-indicators" style="
+            position: absolute;
+            top: 50%;
+            left: 10mm;
+            right: 10mm;
+            height: 0;
+            border-top: 1px dashed #bbb;
+            transform: translateY(-0.5px);
+            z-index: 5;
+            opacity: 0.6;
+        "></div>
+        <div class="fold-text" style="
+            position: absolute;
+            top: calc(50% + 12px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: #888;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 3px 8px;
+            border-radius: 4px;
+            opacity: 0.8;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        ">中轴线对称折叠</div>
+    `;
+    
+    return `
+        <div class="nameplate-page print-area" data-page="empty" style="
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        ">
+            ${centerLine}
+        </div>
+    `;
+}
+
+// 键盘快捷键处理
+function handleKeyboardShortcuts(e) {
+    // 只在非输入框焦点时处理快捷键
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    switch(e.key) {
+        case 'ArrowLeft':
+            if (nameplateData.pages.length > 0) {
+                changePage(-1);
+                e.preventDefault();
+            }
+            break;
+        case 'ArrowRight':
+            if (nameplateData.pages.length > 0) {
+                changePage(1);
+                e.preventDefault();
+            }
+            break;
+        case '=':
+        case '+':
+            if (e.ctrlKey || e.metaKey) {
+                zoomPreview(1.1);
+                e.preventDefault();
+            }
+            break;
+        case '-':
+            if (e.ctrlKey || e.metaKey) {
+                zoomPreview(0.9);
+                e.preventDefault();
+            }
+            break;
+        case 'Enter':
+            if (e.ctrlKey || e.metaKey) {
+                generateNameplates();
+                e.preventDefault();
+            }
+            break;
+    }
+}
