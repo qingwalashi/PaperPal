@@ -4,6 +4,10 @@ let currentPdf = null;
 let currentResult = null;
 let extractedText = '';
 let currentScale = 1.0;
+let currentPage = 1;
+let totalPages = 0;
+let viewMode = 'single'; // 'continuous' 或 'single'
+let rotation = 0; // 0, 90, 180, 270
 
 // 设置PDF.js worker路径
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -21,8 +25,20 @@ function initializePdfProcessor() {
     // 初始化文件上传
     initializeFileUpload();
     
-    // 初始化复制按钮
+    // 初始化复制按钮和PDF控制
     initializeCopyButtons();
+    
+    // 初始化PDF导航控制
+    initializePdfNavigation();
+    
+    // 初始化键盘导航
+    initializeKeyboardNavigation();
+    
+    // 初始化视图模式控制
+    initializeViewModeControls();
+    
+    // 初始化缩放选择器
+    initializeZoomSelector();
     
     // 同步预览区域高度
     syncPreviewHeight();
@@ -146,12 +162,16 @@ async function previewDocument() {
         showProgress(60);
         
         // 获取页数
-        const numPages = currentPdf.numPages;
-        document.getElementById('page-count').textContent = numPages;
+        totalPages = currentPdf.numPages;
+        currentPage = 1;
+        document.getElementById('page-count').textContent = totalPages;
+        document.getElementById('total-pages').textContent = totalPages;
+        document.getElementById('current-page-input').value = currentPage;
+        document.getElementById('current-page-input').max = totalPages;
         
         // 提取所有页面的文本
         extractedText = '';
-        for (let i = 1; i <= numPages; i++) {
+        for (let i = 1; i <= totalPages; i++) {
             const page = await currentPdf.getPage(i);
             const textContent = await page.getTextContent();
             const pageText = textContent.items.map(item => item.str).join(' ');
@@ -186,32 +206,101 @@ async function previewDocument() {
 async function renderPdfPreview() {
     if (!currentPdf) return;
     
-    const previewContainer = document.getElementById('document-preview');
-    previewContainer.innerHTML = '';
+    showPdfLoading(true);
     
-    // 渲染所有页面，支持滚动查看
-    for (let pageNum = 1; pageNum <= currentPdf.numPages; pageNum++) {
-        const page = await currentPdf.getPage(pageNum);
-        const viewport = page.getViewport({scale: currentScale || 1.0});
-        
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-        canvas.className = 'pdf-page';
-        canvas.style.display = 'block';
-        canvas.style.margin = '10px auto';
-        canvas.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-        canvas.style.border = '1px solid #ddd';
-        
-        const renderContext = {
-            canvasContext: context,
-            viewport: viewport
-        };
-        
-        await page.render(renderContext).promise;
-        previewContainer.appendChild(canvas);
+    const pagesContainer = document.getElementById('pdf-pages-container');
+    pagesContainer.innerHTML = '';
+    
+    try {
+        if (viewMode === 'continuous') {
+            // 连续模式：渲染所有页面
+            for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+                await renderSinglePage(pageNum, pagesContainer);
+            }
+        } else {
+            // 单页模式：只渲染当前页面
+            await renderSinglePage(currentPage, pagesContainer);
+        }
+    } finally {
+        showPdfLoading(false);
     }
+}
+
+// 显示/隐藏加载指示器
+function showPdfLoading(show) {
+    const loadingEl = document.getElementById('pdf-loading');
+    if (show) {
+        loadingEl.classList.remove('hidden');
+    } else {
+        loadingEl.classList.add('hidden');
+    }
+}
+
+// 渲染单个页面
+async function renderSinglePage(pageNum, container) {
+    const page = await currentPdf.getPage(pageNum);
+    const viewport = page.getViewport({scale: currentScale || 1.0, rotation: rotation});
+    
+    const pageContainer = document.createElement('div');
+    pageContainer.className = 'pdf-page-container';
+    pageContainer.style.cssText = `
+        text-align: center;
+        margin-bottom: ${viewMode === 'continuous' ? '24px' : '0'};
+        position: relative;
+    `;
+    
+    // 页码标签（仅连续模式）
+    if (viewMode === 'continuous') {
+        const pageLabel = document.createElement('div');
+        pageLabel.className = 'page-label';
+        pageLabel.textContent = `第 ${pageNum} 页`;
+        pageLabel.style.cssText = `
+            margin-bottom: 12px;
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 500;
+            background: #f9fafb;
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        `;
+        pageContainer.appendChild(pageLabel);
+    }
+    
+    // 页面外框
+    const pageWrapper = document.createElement('div');
+    pageWrapper.style.cssText = `
+        display: inline-block;
+        background: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        padding: 8px;
+        margin: 0 auto;
+    `;
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    canvas.className = 'pdf-page';
+    canvas.style.cssText = `
+        display: block;
+        border-radius: 4px;
+        max-width: 100%;
+        height: auto;
+    `;
+    canvas.dataset.pageNum = pageNum;
+    
+    const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+    };
+    
+    await page.render(renderContext).promise;
+    pageWrapper.appendChild(canvas);
+    pageContainer.appendChild(pageWrapper);
+    container.appendChild(pageContainer);
 }
 
 // 显示预览
@@ -219,10 +308,16 @@ function displayPreview() {
     hideAllResults();
     
     const previewArea = document.getElementById('preview-area');
+    const pdfControls = document.getElementById('pdf-controls');
+    
     previewArea.classList.remove('hidden');
+    pdfControls.classList.remove('hidden');
     
     updateResultTitle('PDF预览');
     showResultActions();
+    
+    // 更新页面信息
+    updatePageNavigation();
 }
 
 // 隐藏所有结果区域
@@ -246,7 +341,7 @@ function hideResultActions() {
     document.getElementById('result-actions').classList.add('hidden');
 }
 
-// 初始化复制按钮和PDF控制按钮
+// 初始化复制按钮
 function initializeCopyButtons() {
     // 复制为TXT
     document.getElementById('copy-txt-btn').addEventListener('click', async () => {
@@ -264,21 +359,391 @@ function initializeCopyButtons() {
         }
     });
     
-    // PDF控制按钮
-    document.getElementById('fit-width-btn').addEventListener('click', () => {
-        fitToWidth();
-    });
-    
-    document.getElementById('fit-page-btn').addEventListener('click', () => {
-        fitToPage();
-    });
-    
+    // 缩放按钮（这些按钮在新的工具栏中）
     document.getElementById('zoom-in-btn').addEventListener('click', () => {
         zoomIn();
     });
     
     document.getElementById('zoom-out-btn').addEventListener('click', () => {
         zoomOut();
+    });
+}
+
+// 初始化视图模式控制
+function initializeViewModeControls() {
+    const singlePageBtn = document.getElementById('single-page-mode');
+    const continuousBtn = document.getElementById('continuous-mode');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    
+    // 单页模式
+    singlePageBtn.addEventListener('click', () => {
+        setViewMode('single');
+    });
+    
+    // 连续模式
+    continuousBtn.addEventListener('click', () => {
+        setViewMode('continuous');
+    });
+    
+    // 全屏模式
+    fullscreenBtn.addEventListener('click', () => {
+        toggleFullscreen();
+    });
+
+    // 监听全屏状态变化
+    document.addEventListener('fullscreenchange', syncFullscreenUI);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenUI);
+    document.addEventListener('msfullscreenchange', syncFullscreenUI);
+    
+    // 初始化UI状态
+    syncFullscreenUI();
+}
+
+// 初始化缩放选择器
+function initializeZoomSelector() {
+    const zoomSelect = document.getElementById('zoom-select');
+    
+    zoomSelect.addEventListener('change', (e) => {
+        const value = e.target.value;
+        
+        if (value === 'fit-width') {
+            fitToWidth();
+        } else if (value === 'fit-page') {
+            fitToPage();
+        } else if (value === 'auto') {
+            autoFit();
+        } else {
+            const scale = parseFloat(value);
+            setZoom(scale);
+        }
+    });
+}
+
+// 设置视图模式
+function setViewMode(mode) {
+    viewMode = mode;
+    
+    const singleBtn = document.getElementById('single-page-mode');
+    const continuousBtn = document.getElementById('continuous-mode');
+    
+    if (mode === 'single') {
+        singleBtn.classList.add('bg-white', 'text-gray-700', 'shadow-sm');
+        singleBtn.classList.remove('text-gray-500');
+        continuousBtn.classList.remove('bg-white', 'text-gray-700', 'shadow-sm');
+        continuousBtn.classList.add('text-gray-500');
+    } else {
+        continuousBtn.classList.add('bg-white', 'text-gray-700', 'shadow-sm');
+        continuousBtn.classList.remove('text-gray-500');
+        singleBtn.classList.remove('bg-white', 'text-gray-700', 'shadow-sm');
+        singleBtn.classList.add('text-gray-500');
+    }
+    
+    if (currentPdf) {
+        renderPdfPreview();
+    }
+}
+
+// 切换全屏模式
+function toggleFullscreen() {
+    const previewArea = document.getElementById('preview-area');
+    
+    // 检查当前是否已处于全屏模式
+    const isDocInFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+
+    if (!isDocInFullscreen) {
+        // 进入全屏
+        if (previewArea.requestFullscreen) {
+            previewArea.requestFullscreen();
+        } else if (previewArea.webkitRequestFullscreen) { /* Safari */
+            previewArea.webkitRequestFullscreen();
+        } else if (previewArea.msRequestFullscreen) { /* IE11 */
+            previewArea.msRequestFullscreen();
+        }
+    } else {
+        // 退出全屏
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) { /* IE11 */
+            document.msExitFullscreen();
+        }
+    }
+}
+
+// 同步全屏UI状态
+function syncFullscreenUI() {
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const icon = fullscreenBtn.querySelector('i');
+    const isDocInFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+
+    if (isDocInFullscreen) {
+        icon.className = 'bi bi-fullscreen-exit text-sm';
+    } else {
+        icon.className = 'bi bi-fullscreen text-sm';
+    }
+}
+
+// 设置缩放
+function setZoom(scale) {
+    currentScale = scale;
+    updateZoomSelector();
+    renderPdfPreview();
+}
+
+// 自动适应
+function autoFit() {
+    if (!currentPdf) return;
+    
+    const container = document.getElementById('document-preview');
+    const containerWidth = container.clientWidth - 32; // 减去padding
+    const containerHeight = container.clientHeight - 32;
+    
+    currentPdf.getPage(1).then(page => {
+        const viewport = page.getViewport({scale: 1.0, rotation: rotation});
+        const scaleX = containerWidth / viewport.width;
+        const scaleY = containerHeight / viewport.height;
+        const scale = Math.min(scaleX, scaleY, 2.0); // 限制最大缩放
+        setZoom(scale);
+    });
+}
+
+// 更新缩放选择器
+function updateZoomSelector() {
+    const zoomSelect = document.getElementById('zoom-select');
+    const currentValue = currentScale.toString();
+    
+    // 检查是否有匹配的选项
+    const option = zoomSelect.querySelector(`option[value="${currentValue}"]`);
+    if (option) {
+        zoomSelect.value = currentValue;
+    } else {
+        // 添加自定义缩放值
+        const customOption = document.createElement('option');
+        customOption.value = currentValue;
+        customOption.textContent = Math.round(currentScale * 100) + '%';
+        customOption.selected = true;
+        
+        // 插入到适当位置
+        const options = Array.from(zoomSelect.options);
+        let inserted = false;
+        for (let i = 0; i < options.length; i++) {
+            const optionValue = parseFloat(options[i].value);
+            if (!isNaN(optionValue) && currentScale < optionValue) {
+                zoomSelect.insertBefore(customOption, options[i]);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted) {
+            zoomSelect.appendChild(customOption);
+        }
+    }
+}
+
+// 初始化PDF导航控制
+function initializePdfNavigation() {
+    // 首页按钮
+    document.getElementById('first-page-btn').addEventListener('click', () => {
+        goToPage(1);
+    });
+    
+    // 上一页按钮
+    document.getElementById('prev-page-btn').addEventListener('click', () => {
+        if (currentPage > 1) {
+            goToPage(currentPage - 1);
+        }
+    });
+    
+    // 下一页按钮
+    document.getElementById('next-page-btn').addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            goToPage(currentPage + 1);
+        }
+    });
+    
+    // 末页按钮
+    document.getElementById('last-page-btn').addEventListener('click', () => {
+        goToPage(totalPages);
+    });
+    
+    // 页码输入框
+    const pageInput = document.getElementById('current-page-input');
+    pageInput.addEventListener('change', () => {
+        const pageNum = parseInt(pageInput.value);
+        if (pageNum >= 1 && pageNum <= totalPages) {
+            goToPage(pageNum);
+        } else {
+            pageInput.value = currentPage;
+            showNotification('请输入有效的页码！', 'warning');
+        }
+    });
+    
+    pageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            pageInput.blur();
+        }
+    });
+}
+
+// 初始化键盘导航
+function initializeKeyboardNavigation() {
+    document.addEventListener('keydown', (e) => {
+        if (!currentPdf || document.activeElement.tagName === 'INPUT') return;
+        
+        switch (e.key) {
+            case 'ArrowLeft':
+            case 'ArrowUp':
+            case 'PageUp':
+                e.preventDefault();
+                if (currentPage > 1) {
+                    goToPage(currentPage - 1);
+                }
+                break;
+            case 'ArrowRight':
+            case 'ArrowDown':
+            case 'PageDown':
+                e.preventDefault();
+                if (currentPage < totalPages) {
+                    goToPage(currentPage + 1);
+                }
+                break;
+            case 'Home':
+                e.preventDefault();
+                goToPage(1);
+                break;
+            case 'End':
+                e.preventDefault();
+                goToPage(totalPages);
+                break;
+            case '+':
+            case '=':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    zoomIn();
+                }
+                break;
+            case '-':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    zoomOut();
+                }
+                break;
+            case '0':
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    currentScale = 1.0;
+                    updateZoomLevel();
+                    renderPdfPreview();
+                }
+                break;
+        }
+    });
+    
+    // 鼠标滚轮缩放
+    document.getElementById('document-preview').addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                zoomIn();
+            } else {
+                zoomOut();
+            }
+        }
+    });
+    
+    // 滚动位置检测（用于连续模式下更新当前页面）
+    let scrollTimeout;
+    document.getElementById('document-preview').addEventListener('scroll', () => {
+        if (viewMode !== 'continuous') return;
+        
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            updateCurrentPageFromScroll();
+        }, 100);
+    });
+}
+
+// 根据滚动位置更新当前页面
+function updateCurrentPageFromScroll() {
+    const previewContainer = document.getElementById('document-preview');
+    const containerTop = previewContainer.scrollTop;
+    const containerHeight = previewContainer.clientHeight;
+    const centerY = containerTop + containerHeight / 2;
+    
+    const pages = previewContainer.querySelectorAll('.pdf-page-container');
+    let newCurrentPage = 1;
+    
+    for (let i = 0; i < pages.length; i++) {
+        const pageContainer = pages[i];
+        const pageTop = pageContainer.offsetTop;
+        const pageBottom = pageTop + pageContainer.offsetHeight;
+        
+        if (centerY >= pageTop && centerY <= pageBottom) {
+            newCurrentPage = i + 1;
+            break;
+        }
+    }
+    
+    if (newCurrentPage !== currentPage) {
+        currentPage = newCurrentPage;
+        document.getElementById('current-page-input').value = currentPage;
+        updatePageNavigation();
+    }
+}
+
+// 跳转到指定页面
+function goToPage(pageNum) {
+    if (pageNum < 1 || pageNum > totalPages || pageNum === currentPage) {
+        return;
+    }
+    
+    currentPage = pageNum;
+    document.getElementById('current-page-input').value = currentPage;
+    
+    if (viewMode === 'single') {
+        renderPdfPreview();
+    } else {
+        // 连续模式下滚动到指定页面
+        scrollToPage(pageNum);
+    }
+    
+    updatePageNavigation();
+}
+
+// 滚动到指定页面
+function scrollToPage(pageNum) {
+    const previewContainer = document.getElementById('document-preview');
+    const targetPage = previewContainer.querySelector(`canvas[data-page-num="${pageNum}"]`);
+    
+    if (targetPage) {
+        const pageContainer = targetPage.parentElement;
+        pageContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// 更新页面导航状态
+function updatePageNavigation() {
+    const firstBtn = document.getElementById('first-page-btn');
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    const lastBtn = document.getElementById('last-page-btn');
+    
+    // 更新按钮状态
+    firstBtn.disabled = currentPage <= 1;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+    lastBtn.disabled = currentPage >= totalPages;
+    
+    // 更新按钮样式
+    [firstBtn, prevBtn, nextBtn, lastBtn].forEach(btn => {
+        if (btn.disabled) {
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.classList.remove('hover:bg-gray-600');
+        } else {
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.classList.add('hover:bg-gray-600');
+        }
     });
 }
 
@@ -303,28 +768,25 @@ async function copyToClipboard(text) {
 
 // PDF缩放功能
 function zoomIn() {
-    currentScale = Math.min(currentScale * 1.25, 3.0);
-    updateZoomLevel();
-    renderPdfPreview();
+    const newScale = Math.min(currentScale * 1.25, 3.0);
+    setZoom(newScale);
 }
 
 function zoomOut() {
-    currentScale = Math.max(currentScale / 1.25, 0.25);
-    updateZoomLevel();
-    renderPdfPreview();
+    const newScale = Math.max(currentScale / 1.25, 0.25);
+    setZoom(newScale);
 }
 
 function fitToWidth() {
     if (!currentPdf) return;
     
     const previewContainer = document.getElementById('document-preview');
-    const containerWidth = previewContainer.clientWidth - 40; // 减去padding
+    const containerWidth = previewContainer.clientWidth - 32; // 减去padding
     
     currentPdf.getPage(1).then(page => {
-        const viewport = page.getViewport({scale: 1.0});
-        currentScale = containerWidth / viewport.width;
-        updateZoomLevel();
-        renderPdfPreview();
+        const viewport = page.getViewport({scale: 1.0, rotation: rotation});
+        const scale = (containerWidth - 16) / viewport.width; // 额外减去页面内边距
+        setZoom(scale);
     });
 }
 
@@ -332,24 +794,21 @@ function fitToPage() {
     if (!currentPdf) return;
     
     const previewContainer = document.getElementById('document-preview');
-    const containerWidth = previewContainer.clientWidth - 40;
-    const containerHeight = previewContainer.clientHeight - 40;
+    const containerWidth = previewContainer.clientWidth - 32;
+    const containerHeight = previewContainer.clientHeight - 32;
     
     currentPdf.getPage(1).then(page => {
-        const viewport = page.getViewport({scale: 1.0});
-        const scaleX = containerWidth / viewport.width;
-        const scaleY = containerHeight / viewport.height;
-        currentScale = Math.min(scaleX, scaleY);
-        updateZoomLevel();
-        renderPdfPreview();
+        const viewport = page.getViewport({scale: 1.0, rotation: rotation});
+        const scaleX = (containerWidth - 16) / viewport.width;
+        const scaleY = (containerHeight - 16) / viewport.height;
+        const scale = Math.min(scaleX, scaleY);
+        setZoom(scale);
     });
 }
 
 function updateZoomLevel() {
-    const zoomLevel = document.getElementById('zoom-level');
-    if (zoomLevel) {
-        zoomLevel.textContent = Math.round(currentScale * 100) + '%';
-    }
+    // 更新缩放选择器显示
+    updateZoomSelector();
 }
 
 // 同步预览区域高度
@@ -573,247 +1032,3 @@ function initializeKeyboardEvents() {
     });
 }
 
-// 缩放功能
-function zoomIn() {
-    const newScale = Math.min(currentScale * 1.25, 3.0);
-    setZoom(newScale);
-}
-
-function zoomOut() {
-    const newScale = Math.max(currentScale / 1.25, 0.25);
-    setZoom(newScale);
-}
-
-function setZoom(scale) {
-    currentScale = scale;
-    updateZoomLevel();
-    renderPage(currentPage);
-}
-
-function fitToWidth() {
-    const viewer = document.getElementById('pdf-viewer');
-    const viewerWidth = viewer.clientWidth - 40; // 减去padding
-    
-    if (currentPdf) {
-        currentPdf.getPage(currentPage).then(page => {
-            const viewport = page.getViewport({scale: 1.0});
-            const scale = viewerWidth / viewport.width;
-            setZoom(scale);
-        });
-    }
-}
-
-// 更新页面导航状态
-function updatePageNavigation() {
-    const prevBtn = document.getElementById('prev-page');
-    const nextBtn = document.getElementById('next-page');
-    
-    prevBtn.disabled = currentPage <= 1;
-    nextBtn.disabled = currentPage >= totalPages;
-}
-
-// 更新缩放级别显示
-function updateZoomLevel() {
-    const zoomLevel = document.getElementById('zoom-level');
-    zoomLevel.textContent = Math.round(currentScale * 100) + '%';
-}
-
-// 下载PDF
-function downloadPdf() {
-    if (!pdfData) {
-        CommonUtils.showNotification('没有可下载的PDF文件！', 'warning');
-        return;
-    }
-    
-    const blob = new Blob([pdfData], {type: 'application/pdf'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'document.pdf';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    CommonUtils.showNotification('PDF文件下载成功！', 'success');
-}
-
-// 打印PDF
-function printPdf() {
-    if (!pdfData) {
-        CommonUtils.showNotification('没有可打印的PDF文件！', 'warning');
-        return;
-    }
-    
-    const blob = new Blob([pdfData], {type: 'application/pdf'});
-    const url = URL.createObjectURL(blob);
-    const printWindow = window.open(url);
-    
-    printWindow.addEventListener('load', () => {
-        printWindow.print();
-    });
-    
-    CommonUtils.showNotification('正在准备打印...', 'info');
-}
-
-// 设置视图模式
-function setViewMode(mode) {
-    const singleBtn = document.getElementById('single-page-mode');
-    const continuousBtn = document.getElementById('continuous-mode');
-    
-    if (mode === 'single') {
-        singleBtn.classList.add('bg-white', 'text-gray-700', 'shadow-sm');
-        singleBtn.classList.remove('text-gray-500');
-        continuousBtn.classList.remove('bg-white', 'text-gray-700', 'shadow-sm');
-        continuousBtn.classList.add('text-gray-500');
-    } else {
-        continuousBtn.classList.add('bg-white', 'text-gray-700', 'shadow-sm');
-        continuousBtn.classList.remove('text-gray-500');
-        singleBtn.classList.remove('bg-white', 'text-gray-700', 'shadow-sm');
-        singleBtn.classList.add('text-gray-500');
-    }
-    
-    // TODO: 实现连续模式渲染
-    if (mode === 'continuous') {
-        CommonUtils.showNotification('连续模式功能开发中...', 'info');
-    }
-}
-
-// 显示控制面板
-function showControls() {
-    document.getElementById('page-navigation').classList.remove('hidden');
-    document.getElementById('zoom-controls').classList.remove('hidden');
-    document.getElementById('pdf-tools').classList.remove('hidden');
-    document.getElementById('view-mode-toggle').classList.remove('hidden');
-}
-
-// 显示PDF容器
-function showPdfContainer() {
-    document.getElementById('default-state').classList.add('hidden');
-    document.getElementById('loading-state').classList.add('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('pdf-container').classList.remove('hidden');
-}
-
-// 显示加载状态
-function showLoadingState() {
-    document.getElementById('default-state').classList.add('hidden');
-    document.getElementById('pdf-container').classList.add('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('loading-state').classList.remove('hidden');
-    
-    showProgress(0);
-}
-
-// 显示错误状态
-function showErrorState(message) {
-    document.getElementById('default-state').classList.add('hidden');
-    document.getElementById('pdf-container').classList.add('hidden');
-    document.getElementById('loading-state').classList.add('hidden');
-    document.getElementById('error-state').classList.remove('hidden');
-    
-    document.getElementById('error-message').textContent = message;
-    hideProgress();
-}
-
-// 显示进度
-function showProgress(percent) {
-    const container = document.getElementById('progress-container');
-    const fill = document.getElementById('progress-fill');
-    const text = document.getElementById('progress-text');
-    
-    container.classList.remove('hidden');
-    fill.style.width = `${percent}%`;
-    text.textContent = `${percent}%`;
-}
-
-// 隐藏进度
-function hideProgress() {
-    setTimeout(() => {
-        document.getElementById('progress-container').classList.add('hidden');
-    }, 1000);
-}
-
-// 添加样式
-const additionalCSS = `
-<style>
-#pdf-viewer {
-    min-height: 400px;
-    background: #f8fafc;
-    border-radius: 0.5rem;
-    padding: 1rem;
-}
-
-#pdf-viewer canvas {
-    display: block;
-    margin: 0 auto;
-    max-width: 100%;
-    height: auto;
-}
-
-.zoom-preset.active {
-    background: #3b82f6 !important;
-    color: white !important;
-}
-
-/* 滚动条样式 */
-#pdf-viewer::-webkit-scrollbar {
-    width: 8px;
-}
-
-#pdf-viewer::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-
-#pdf-viewer::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 4px;
-}
-
-#pdf-viewer::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
-
-/* 页面输入框样式 */
-#current-page {
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-}
-
-#current-page:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 1px #3b82f6;
-}
-
-/* 按钮禁用状态 */
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-button:disabled:hover {
-    transform: none !important;
-    box-shadow: none !important;
-}
-
-/* 加载动画 */
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading {
-    display: inline-block;
-    width: 2rem;
-    height: 2rem;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #3b82f6;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-</style>
-`;
-
-document.head.insertAdjacentHTML('beforeend', additionalCSS);

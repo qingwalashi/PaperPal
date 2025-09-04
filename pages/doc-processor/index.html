@@ -25,6 +25,7 @@
         @media (min-width: 1024px) {
             .doc-layout {
                 flex-direction: row;
+                align-items: flex-start;
             }
             
             .upload-section {
@@ -34,6 +35,22 @@
             
             .preview-section {
                 width: 75%;
+            }
+            
+            /* 确保预览卡片与上传卡片高度匹配 */
+            .upload-section > div,
+            .preview-section > div {
+                height: fit-content;
+            }
+            
+            /* 让预览区域的默认状态高度与上传区域匹配 */
+            #default-state {
+                min-height: 320px !important;
+            }
+            
+            /* 确保预览卡片整体高度与上传卡片匹配 */
+            #preview-card {
+                min-height: 100%;
             }
         }
     </style>
@@ -115,7 +132,7 @@
 
                 <!-- 预览/结果区域 -->
                 <div class="preview-section flex-grow">
-                    <div class="bg-white rounded-lg shadow-lg flex flex-col" id="preview-card">
+                    <div class="bg-white rounded-lg shadow-lg flex flex-col h-fit" id="preview-card">
                         <div class="border-b p-4">
                             <div class="flex items-center justify-between">
                                 <h2 class="text-xl font-semibold text-gray-800">
@@ -139,17 +156,17 @@
                             </div>
                         </div>
                         
-                        <div class="p-6 flex-grow flex flex-col overflow-hidden">
+                        <div class="p-6 flex flex-col overflow-hidden">
                             <!-- 默认状态 -->
-                            <div id="default-state" class="text-center py-12 flex-grow flex flex-col justify-center items-center">
+                            <div id="default-state" class="text-center py-8 flex flex-col justify-center items-center" style="min-height: 400px;">
                                 <i class="bi bi-file-earmark-text text-6xl text-blue-500 mb-4"></i>
                                 <h3 class="text-xl font-medium text-gray-500 mb-2">请上传Word文档</h3>
                                 <p class="text-gray-400">支持在线预览和格式转换</p>
                             </div>
 
                             <!-- 预览区域 -->
-                            <div id="preview-area" class="flex-grow flex flex-col hidden overflow-hidden">
-                                <div id="document-preview" class="border rounded-lg p-6 bg-white flex-grow overflow-y-auto h-full"></div>
+                            <div id="preview-area" class="flex flex-col hidden overflow-hidden">
+                                <div id="document-preview" class="border rounded-lg p-6 bg-white overflow-y-auto" style="max-height: 600px; min-height: 400px;"></div>
                             </div>
 
                             <!-- HTML结果区域 -->

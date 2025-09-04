@@ -1,0 +1,86 @@
+# 下载页面配置文件
+# 包含所有字体和模板的详细信息
+
+categories:
+  fonts:
+    title: "办公常用字体"
+    subtitle: "精选办公文档常用字体，提升文档专业度"
+    items:
+      - name: "思源黑体"
+        description: "Adobe与Google合作开发的开源字体，支持简体中文、繁体中文、日文和韩文。"
+        file_path: "fonts/source-han-sans.zip"
+        file_size: "auto"  # 自动检测
+        file_format: "ZIP"
+        preview_text: "思源黑体预览 ABC 123"
+        font_family: "'Source Han Sans', sans-serif"
+        
+      - name: "阿里巴巴普惠体"
+        description: "阿里巴巴集团推出的免费商用字体，现代简洁，适合各种商务场景。"
+        file_path: "fonts/AlibabaPuHuiTi.zip"
+        file_size: "auto"
+        file_format: "ZIP"
+        preview_text: "阿里巴巴普惠体预览 ABC 123"
+        font_family: "'Alibaba PuHuiTi', sans-serif"
+        
+      - name: "文泉驿微米黑"
+        description: "开源中文字体项目，包含完整的简体中文字符集，适合屏幕显示。"
+        file_path: "fonts/WenQuanYi-MicroHei.ttf"
+        file_size: "auto"
+        file_format: "TTF"
+        preview_text: "文泉驿微米黑预览 ABC 123"
+        font_family: "'WenQuanYi Micro Hei', sans-serif"
+
+  official_fonts:
+    title: "公文字体"
+    subtitle: "适用于公文写作与正式场景的字体"
+    items:
+      - name: "思源宋体"
+        description: "开源宋体字族，适合正文排版，具有良好的可读性和专业感。"
+        file_path: "fonts/source-han-serif.zip"
+        file_size: "auto"
+        file_format: "ZIP"
+        preview_text: "思源宋体预览 ABC 123"
+        font_family: "'Source Han Serif', serif"
+        
+      - name: "方正楷体"
+        description: "经典楷体字型，适合正式文档和传统文化相关内容。"
+        file_path: "fonts/FangZheng-KaiTi.ttf"
+        file_size: "auto"
+        file_format: "TTF"
+        preview_text: "方正楷体预览 ABC 123"
+        font_family: "'FangSong', serif"
+        
+      - name: "站酷高端黑"
+        description: "适合标题与重点标识的字体，可用于公文封面与版头。"
+        file_path: "fonts/ZCOOL-GaoduanHei.ttf"
+        file_size: "auto"
+        file_format: "TTF"
+        preview_text: "站酷高端黑预览 ABC 123"
+        font_family: "'ZCOOL XiaoWei', sans-serif"
+
+  templates:
+    title: "文档模板"
+    subtitle: "精选办公文档模板，提高工作效率"
+    items:
+      - name: "工作报告模板"
+        description: "标准工作报告模板，包含封面、目录、正文等完整结构。"
+        file_path: "templates/work-report.docx"
+        file_size: "auto"
+        file_format: "DOCX"
+        
+      - name: "商业计划书模板"
+        description: "专业商业计划书模板，适合创业项目和投资路演。"
+        file_path: "templates/business-plan.docx"
+        file_size: "auto"
+        file_format: "DOCX"
+        
+      - name: "会议纪要模板"
+        description: "标准会议纪要格式，包含议题、讨论要点、决议等内容。"
+        file_path: "templates/meeting-minutes.docx"
+        file_size: "auto"
+        file_format: "DOCX"
+
+# 页面基本信息
+page_info:
+  title: "常用下载"
+  subtitle: "提供常用办公字体、模板等资源下载"

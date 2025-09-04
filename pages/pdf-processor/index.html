@@ -138,27 +138,6 @@
                                         <i class="bi bi-clipboard mr-2"></i>
                                         复制文本
                                     </button>
-                                    
-                                    <!-- PDF控制按钮 -->
-                                    <div class="flex items-center gap-2">
-                                        <button id="fit-width-btn" class="inline-flex items-center px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm">
-                                            <i class="bi bi-arrows-expand mr-1"></i>
-                                            适应宽度
-                                        </button>
-                                        <button id="fit-page-btn" class="inline-flex items-center px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm">
-                                            <i class="bi bi-aspect-ratio mr-1"></i>
-                                            适应页面
-                                        </button>
-                                        <div class="flex items-center gap-1">
-                                            <button id="zoom-out-btn" class="px-2 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
-                                                <i class="bi bi-zoom-out"></i>
-                                            </button>
-                                            <span id="zoom-level" class="text-sm text-gray-600 min-w-12 text-center">100%</span>
-                                            <button id="zoom-in-btn" class="px-2 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors">
-                                                <i class="bi bi-zoom-in"></i>
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -173,7 +152,113 @@
 
                             <!-- 预览区域 -->
                             <div id="preview-area" class="flex-grow flex flex-col hidden overflow-hidden">
-                                <div id="document-preview" class="border rounded-lg bg-gray-100 flex-grow overflow-y-auto h-full pdf-viewer" style="max-height: calc(100vh - 300px);"></div>
+                                <!-- PDF控制工具栏 -->
+                                <div id="pdf-controls" class="hidden mb-4 bg-white border rounded-lg shadow-sm">
+                                    <!-- 主工具栏 -->
+                                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                                        <!-- 左侧：页面导航 -->
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex items-center gap-1">
+                                                <button id="first-page-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="首页">
+                                                    <i class="bi bi-skip-start-fill text-sm"></i>
+                                                </button>
+                                                <button id="prev-page-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="上一页">
+                                                    <i class="bi bi-chevron-left text-sm"></i>
+                                                </button>
+                                            </div>
+                                            
+                                            <div class="flex items-center gap-2 px-3 py-1 bg-gray-50 rounded">
+                                                <input id="current-page-input" type="number" min="1" class="w-12 px-1 py-1 text-center text-sm border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded" value="1">
+                                                <span class="text-gray-500 text-sm">/</span>
+                                                <span id="total-pages" class="text-gray-700 text-sm font-medium">1</span>
+                                            </div>
+                                            
+                                            <div class="flex items-center gap-1">
+                                                <button id="next-page-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="下一页">
+                                                    <i class="bi bi-chevron-right text-sm"></i>
+                                                </button>
+                                                <button id="last-page-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="末页">
+                                                    <i class="bi bi-skip-end-fill text-sm"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 中间：缩放控制 -->
+                                        <div class="flex items-center gap-3">
+                                            <button id="zoom-out-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="缩小">
+                                                <i class="bi bi-zoom-out text-sm"></i>
+                                            </button>
+                                            
+                                            <div class="relative">
+                                                <select id="zoom-select" class="px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white min-w-20 text-center">
+                                                    <option value="0.5">50%</option>
+                                                    <option value="0.75">75%</option>
+                                                    <option value="1" selected>100%</option>
+                                                    <option value="1.25">125%</option>
+                                                    <option value="1.5">150%</option>
+                                                    <option value="2">200%</option>
+                                                    <option value="fit-width">适应宽度</option>
+                                                    <option value="fit-page">适应页面</option>
+                                                    <option value="auto">自动</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <button id="zoom-in-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="放大">
+                                                <i class="bi bi-zoom-in text-sm"></i>
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- 右侧：视图控制 -->
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex bg-gray-100 rounded p-1">
+                                                <button id="single-page-mode" class="px-3 py-1 text-sm rounded transition-colors bg-white text-gray-700 shadow-sm" title="单页模式">
+                                                    <i class="bi bi-file-earmark mr-1"></i>单页
+                                                </button>
+                                                <button id="continuous-mode" class="px-3 py-1 text-sm rounded transition-colors text-gray-500 hover:text-gray-700" title="连续模式">
+                                                    <i class="bi bi-files mr-1"></i>连续
+                                                </button>
+                                            </div>
+                                            
+                                            <button id="fullscreen-btn" class="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors" title="全屏">
+                                                <i class="bi bi-fullscreen text-sm"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 次要工具栏（可选） -->
+                                    <div id="secondary-toolbar" class="hidden px-4 py-2 bg-gray-50 text-sm">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-4">
+                                                <button class="text-gray-600 hover:text-gray-900" title="旋转">
+                                                    <i class="bi bi-arrow-clockwise mr-1"></i>旋转
+                                                </button>
+                                                <button class="text-gray-600 hover:text-gray-900" title="下载">
+                                                    <i class="bi bi-download mr-1"></i>下载
+                                                </button>
+                                                <button class="text-gray-600 hover:text-gray-900" title="打印">
+                                                    <i class="bi bi-printer mr-1"></i>打印
+                                                </button>
+                                            </div>
+                                            <div class="text-gray-500">
+                                                <span id="file-info-text">文件大小：--</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- PDF预览容器 -->
+                                <div id="document-preview" class="border rounded-lg bg-gray-50 flex-grow overflow-auto h-full pdf-viewer relative" style="max-height: calc(100vh - 450px);">
+                                    <!-- 加载指示器 -->
+                                    <div id="pdf-loading" class="hidden absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
+                                        <div class="text-center">
+                                            <div class="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                            <p class="text-gray-600 text-sm">正在渲染PDF...</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 页面容器 -->
+                                    <div id="pdf-pages-container" class="p-4"></div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -204,16 +204,20 @@
 /* 功能卡片样式 */
 .feature-card {
     background: var(--pp-surface);
-    border-radius: 1rem;
-    padding: 2rem;
-    box-shadow: var(--pp-shadow);
-    transition: all 0.3s ease;
-    border: 1px solid var(--pp-border);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .feature-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    border-color: #e2e8f0;
 }
 
 .feature-icon {
@@ -237,25 +241,34 @@
 }
 
 .feature-description {
-    color: var(--pp-text-muted);
-    line-height: 1.6;
-    margin-bottom: 1.5rem;
+    color: #64748b;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    flex-grow: 1;
 }
 
 .feature-button {
-    background: var(--pp-primary-600);
-    color: white;
-    padding: 0.75rem 1.5rem;
+    background: transparent;
+    color: #3b82f6;
+    padding: 0.625rem 1rem;
+    border: 1px solid #3b82f6;
     border-radius: 0.5rem;
     text-decoration: none;
     font-weight: 500;
-    transition: all 0.3s ease;
-    display: inline-block;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: auto;
 }
 
 .feature-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.28);
+    background: #3b82f6;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.25);
 }
 
 /* 按钮与图标颜色统一（按钮文本色与图标一致） */
@@ -583,4 +596,42 @@ button:disabled,
 .process-btn:focus-visible {
     outline: 2px solid var(--pp-primary-300);
     outline-offset: 2px;
+}
+
+/* PDF Viewer Fullscreen Mode Styles */
+#preview-area:-webkit-full-screen {
+  background-color: #2d3748; /* dark gray */
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#preview-area:fullscreen {
+  background-color: #2d3748; /* dark gray */
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#preview-area:-webkit-full-screen #document-preview,
+#preview-area:fullscreen #document-preview {
+  max-height: 100% !important; /* Override inline style */
+  height: 100% !important; /* Ensure it takes full height */
+  flex-grow: 1;
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  background-color: #2d3748; /* Match parent background */
+  min-height: 0; /* Fix flexbox overflow issue */
+}
+
+#preview-area:-webkit-full-screen #pdf-pages-container,
+#preview-area:fullscreen #pdf-pages-container {
+    padding: 1rem; /* Add some padding inside the scroll container */
 }
