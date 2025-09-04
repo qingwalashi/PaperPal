@@ -16,8 +16,13 @@ function initializeDocProcessor() {
     // 初始化文件上传
     initializeFileUpload();
     
-    // 处理按钮已移除，上传后自动预览
+    // 初始化复制按钮
+    initializeCopyButtons();
     
+    // 初始化时同步预览区域高度
+    syncPreviewHeight();
+    window.addEventListener('resize', syncPreviewHeight);
+
     // 初始化标签页切换
     initializeTabSwitching();
     
@@ -32,7 +37,8 @@ function initializeFileUpload() {
     // 创建拖拽上传功能
     window.FileHandler.createDropZone(uploadZone, {
         inputId: 'file-input',
-        allowedTypes: ['.doc', '.docx', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        // Mammoth 仅支持 .docx，这里禁止 .doc
+        allowedTypes: ['.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         maxSize: 10 * 1024 * 1024, // 10MB
         multiple: false,
         onDrop: handleFileUpload,
@@ -47,14 +53,26 @@ function handleFileUpload(files) {
     if (files.length === 0) return;
     
     const file = files[0];
+    const ext = getFileExtension(file.name);
+    if (ext !== '.docx') {
+        CommonUtils.showNotification('当前仅支持 .docx 文件，请转换后再试。', 'warning');
+        return;
+    }
     currentFile = file;
     
     // 显示文件信息
     displayFileInfo(file);
-    // 上传后自动进行文档预览
-    previewDocument().catch(err => {
+    // 同步预览区域高度
+    syncPreviewHeight();
+    // 自动开始预览
+    previewDocument(file).catch(err => {
         console.error(err);
-        CommonUtils.showNotification('预览失败，请重试！', 'error');
+        const msg = (err && err.message) ? err.message : String(err || '未知错误');
+        // 针对常见 zip 读取失败的友好提示
+        const hint = msg.includes('central directory') || msg.includes('zip')
+            ? '文件格式可能不是 .docx（Office Open XML）。请确认后重试。'
+            : '';
+        CommonUtils.showNotification(`预览失败：${msg}${hint ? '｜' + hint : ''}`, 'error');
     });
 }
 
@@ -73,6 +91,20 @@ function displayFileInfo(file) {
     if (file.type) fileType.title = file.type;
     
     fileInfo.classList.remove('hidden');
+}
+
+// 同步预览区域高度与上传区域高度
+function syncPreviewHeight() {
+    // 等待DOM更新后再计算高度
+    setTimeout(() => {
+        const uploadCard = document.querySelector('.upload-section .bg-white');
+        const previewCard = document.getElementById('preview-card');
+        
+        if (uploadCard && previewCard) {
+            const uploadHeight = uploadCard.offsetHeight;
+            previewCard.style.height = uploadHeight + 'px';
+        }
+    }, 100);
 }
 
 // 初始化处理按钮
@@ -120,10 +152,60 @@ function initializeProcessButtons() {
 async function previewDocument() {
     showProgress(20);
     
+    // 双重保护：仅处理 docx
+    const ext = getFileExtension(currentFile && currentFile.name);
+    if (ext !== '.docx') {
+        showProgress(0);
+        throw new Error('仅支持 .docx 文件');
+    }
+
     const arrayBuffer = await currentFile.arrayBuffer();
     showProgress(40);
     
-    const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+    // 配置mammoth转换选项，优化标题、列表、表格识别
+    const options = {
+        arrayBuffer: arrayBuffer,
+        styleMap: [
+            // 基于大纲级别的标题映射（更可靠）
+            "p:outline-level(1) => h1:fresh",
+            "p:outline-level(2) => h2:fresh",
+            "p:outline-level(3) => h3:fresh",
+            "p:outline-level(4) => h4:fresh",
+            "p:outline-level(5) => h5:fresh",
+            "p:outline-level(6) => h6:fresh",
+            // 英文标题样式映射
+            "p[style-name='Heading 1'] => h1:fresh",
+            "p[style-name='Heading 2'] => h2:fresh", 
+            "p[style-name='Heading 3'] => h3:fresh",
+            "p[style-name='Heading 4'] => h4:fresh",
+            "p[style-name='Heading 5'] => h5:fresh",
+            "p[style-name='Heading 6'] => h6:fresh",
+            // 中文标题样式
+            "p[style-name='标题 1'] => h1:fresh",
+            "p[style-name='标题 2'] => h2:fresh",
+            "p[style-name='标题 3'] => h3:fresh",
+            "p[style-name='标题 4'] => h4:fresh",
+            "p[style-name='标题 5'] => h5:fresh",
+            "p[style-name='标题 6'] => h6:fresh",
+            // 其他可能的标题样式
+            "p[style-name='Title'] => h1:fresh",
+            "p[style-name='Subtitle'] => h2:fresh",
+            "p[style-name='标题'] => h1:fresh",
+            "p[style-name='副标题'] => h2:fresh",
+            // 列表样式
+            "p[style-name='List Paragraph'] => p:fresh",
+            "p[style-name='列表段落'] => p:fresh"
+        ],
+        convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+                return {
+                    src: "data:" + image.contentType + ";base64," + imageBuffer
+                };
+            });
+        })
+    };
+    
+    const result = await mammoth.convertToHtml(options);
     showProgress(80);
     
     currentResult = {
@@ -146,7 +228,50 @@ async function convertToHtml() {
     const arrayBuffer = await currentFile.arrayBuffer();
     showProgress(40);
     
-    const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+    // 使用相同的优化配置
+    const options = {
+        arrayBuffer: arrayBuffer,
+        styleMap: [
+            // 基于大纲级别的标题映射（更可靠）
+            "p:outline-level(1) => h1:fresh",
+            "p:outline-level(2) => h2:fresh",
+            "p:outline-level(3) => h3:fresh",
+            "p:outline-level(4) => h4:fresh",
+            "p:outline-level(5) => h5:fresh",
+            "p:outline-level(6) => h6:fresh",
+            // 英文标题样式映射
+            "p[style-name='Heading 1'] => h1:fresh",
+            "p[style-name='Heading 2'] => h2:fresh", 
+            "p[style-name='Heading 3'] => h3:fresh",
+            "p[style-name='Heading 4'] => h4:fresh",
+            "p[style-name='Heading 5'] => h5:fresh",
+            "p[style-name='Heading 6'] => h6:fresh",
+            // 中文标题样式
+            "p[style-name='标题 1'] => h1:fresh",
+            "p[style-name='标题 2'] => h2:fresh",
+            "p[style-name='标题 3'] => h3:fresh",
+            "p[style-name='标题 4'] => h4:fresh",
+            "p[style-name='标题 5'] => h5:fresh",
+            "p[style-name='标题 6'] => h6:fresh",
+            // 其他可能的标题样式
+            "p[style-name='Title'] => h1:fresh",
+            "p[style-name='Subtitle'] => h2:fresh",
+            "p[style-name='标题'] => h1:fresh",
+            "p[style-name='副标题'] => h2:fresh",
+            // 列表样式
+            "p[style-name='List Paragraph'] => p:fresh",
+            "p[style-name='列表段落'] => p:fresh"
+        ],
+        convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+                return {
+                    src: "data:" + image.contentType + ";base64," + imageBuffer
+                };
+            });
+        })
+    };
+    
+    const result = await mammoth.convertToHtml(options);
     showProgress(80);
     
     currentResult = {
@@ -169,14 +294,125 @@ async function convertToMarkdown() {
     const arrayBuffer = await currentFile.arrayBuffer();
     showProgress(40);
     
-    // 先转换为HTML
-    const htmlResult = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+    // 先转换为HTML，使用相同的优化配置
+    const options = {
+        arrayBuffer: arrayBuffer,
+        styleMap: [
+            // 基于大纲级别的标题映射（更可靠）
+            "p:outline-level(1) => h1:fresh",
+            "p:outline-level(2) => h2:fresh",
+            "p:outline-level(3) => h3:fresh",
+            "p:outline-level(4) => h4:fresh",
+            "p:outline-level(5) => h5:fresh",
+            "p:outline-level(6) => h6:fresh",
+            // 英文标题样式映射
+            "p[style-name='Heading 1'] => h1:fresh",
+            "p[style-name='Heading 2'] => h2:fresh", 
+            "p[style-name='Heading 3'] => h3:fresh",
+            "p[style-name='Heading 4'] => h4:fresh",
+            "p[style-name='Heading 5'] => h5:fresh",
+            "p[style-name='Heading 6'] => h6:fresh",
+            // 中文标题样式
+            "p[style-name='标题 1'] => h1:fresh",
+            "p[style-name='标题 2'] => h2:fresh",
+            "p[style-name='标题 3'] => h3:fresh",
+            "p[style-name='标题 4'] => h4:fresh",
+            "p[style-name='标题 5'] => h5:fresh",
+            "p[style-name='标题 6'] => h6:fresh",
+            // 其他可能的标题样式
+            "p[style-name='Title'] => h1:fresh",
+            "p[style-name='Subtitle'] => h2:fresh",
+            "p[style-name='标题'] => h1:fresh",
+            "p[style-name='副标题'] => h2:fresh",
+            // 列表样式
+            "p[style-name='List Paragraph'] => p:fresh",
+            "p[style-name='列表段落'] => p:fresh"
+        ],
+        convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+                return {
+                    src: "data:" + image.contentType + ";base64," + imageBuffer
+                };
+            });
+        })
+    };
+    
+    const htmlResult = await mammoth.convertToHtml(options);
     showProgress(60);
     
-    // 再转换为Markdown
+    // 再转换为Markdown，优化转换规则
     const turndownService = new TurndownService({
         headingStyle: 'atx',
-        codeBlockStyle: 'fenced'
+        codeBlockStyle: 'fenced',
+        bulletListMarker: '-'
+    });
+    
+    // 修复表格转换规则
+    turndownService.addRule('tables', {
+        filter: 'table',
+        replacement: function (content, node) {
+            const rows = Array.from(node.querySelectorAll('tr'));
+            if (rows.length === 0) return '';
+            
+            let markdown = '\n';
+            let hasHeader = false;
+            
+            rows.forEach((row, index) => {
+                const cells = Array.from(row.querySelectorAll('td, th'));
+                if (cells.length === 0) return;
+                
+                const cellContents = cells.map(cell => {
+                    let text = cell.textContent || cell.innerText || '';
+                    return text.trim().replace(/\|/g, '\\|').replace(/\n/g, ' ');
+                });
+                
+                markdown += '| ' + cellContents.join(' | ') + ' |\n';
+                
+                // 检查是否有表头
+                if (index === 0) {
+                    hasHeader = row.querySelector('th') !== null;
+                    if (hasHeader || index === 0) {
+                        markdown += '|' + cells.map(() => ' --- ').join('|') + '|\n';
+                    }
+                }
+            });
+            
+            return markdown + '\n';
+        }
+    });
+    
+    // 优化列表转换
+    turndownService.addRule('lists', {
+        filter: ['ul', 'ol'],
+        replacement: function (content, node) {
+            const isOrdered = node.tagName.toLowerCase() === 'ol';
+            const items = Array.from(node.querySelectorAll('li'));
+            
+            let markdown = '\n';
+            items.forEach((item, index) => {
+                const marker = isOrdered ? `${index + 1}. ` : '- ';
+                const text = item.textContent.trim();
+                markdown += marker + text + '\n';
+            });
+            return markdown + '\n';
+        }
+    });
+    
+    // 移除base64图片，只保留图片占位符
+    turndownService.addRule('images', {
+        filter: 'img',
+        replacement: function (content, node) {
+            const src = node.getAttribute('src') || '';
+            const alt = node.getAttribute('alt') || '图片';
+            
+            // 如果是base64图片，只返回占位符
+            if (src.startsWith('data:')) {
+                return `![${alt}](图片已移除)`;
+            }
+            
+            // 保留外部链接图片
+            return `![${alt}](${src})`;
+        }
     });
     
     const markdown = turndownService.turndown(htmlResult.value);
@@ -203,7 +439,13 @@ function displayPreview(html) {
     const previewArea = document.getElementById('preview-area');
     const documentPreview = document.getElementById('document-preview');
     
-    documentPreview.innerHTML = html;
+    // 包裹一层“页面容器”，让内容在固定宽度内居中展示，模拟Word页面
+    const wrapped = `
+        <div class="docx-view">
+            <div class="docx-page prose-docx">${html}</div>
+        </div>
+    `;
+    documentPreview.innerHTML = wrapped;
     previewArea.classList.remove('hidden');
     
     updateResultTitle('文档预览');
@@ -532,81 +774,67 @@ const additionalCSS = `
     line-height: 1.6;
 }
 
-#document-preview h1,
-#html-preview h1,
-#md-preview h1 {
-    font-size: 1.875rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
-    color: #1f2937;
+/* ====== 更贴近 Word 的预览样式 ====== */
+/* 外层容器：负责水平居中并填充高度 */
+.docx-view {
+    display: flex;
+    justify-content: center;
+    height: 100%;
+    overflow-y: auto;
+    padding: 1rem 0;
 }
 
-#document-preview h2,
-#html-preview h2,
-#md-preview h2 {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin-bottom: 0.75rem;
-    color: #374151;
+/* 页面容器：固定页面宽度，白色背景与阴影，内边距模拟页边距 */
+.docx-page {
+    background: #ffffff;
+    color: #111827;
+    width: 816px; /* 约等于 A4 可用内容宽度（96dpi 下 ~8.5in - 页边距）*/
+    max-width: 100%;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    border-radius: 6px;
+    padding: 2.5rem; /* 页边距 */
+    box-sizing: border-box; /* 确保 padding 不会撑大宽度 */
+    min-height: fit-content; /* 允许内容自然展开 */
+    margin-bottom: 1rem; /* 底部留白 */
 }
 
-#document-preview h3,
-#html-preview h3,
-#md-preview h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: #4b5563;
+/* 小屏时减少内边距，避免左右被挤压 */
+@media (max-width: 640px) {
+    .docx-page { padding: 1rem; }
 }
 
-#document-preview p,
-#html-preview p,
-#md-preview p {
-    margin-bottom: 1rem;
-    color: #6b7280;
-}
+/* 段落与文本排版 */
+.prose-docx p { margin: 0 0 0.9rem; color: #1f2937; }
+.prose-docx strong { font-weight: 700; }
+.prose-docx em { font-style: italic; }
 
-#document-preview table,
-#html-preview table,
-#md-preview table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-}
+/* 标题层级（适度接近 Word 默认）*/
+.prose-docx h1 { font-size: 1.875rem; font-weight: 700; margin: 1.2rem 0 0.8rem; color: #111827; }
+.prose-docx h2 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.7rem; color: #111827; }
+.prose-docx h3 { font-size: 1.25rem; font-weight: 600; margin: 0.9rem 0 0.6rem; color: #111827; }
 
-#document-preview th,
-#document-preview td,
-#html-preview th,
-#html-preview td,
-#md-preview th,
-#md-preview td {
-    border: 1px solid #d1d5db;
-    padding: 0.5rem;
-    text-align: left;
-}
+/* 列表样式 */
+.prose-docx ul { list-style: disc; padding-left: 1.5rem; margin: 0 0 0.9rem; }
+.prose-docx ol { list-style: decimal; padding-left: 1.5rem; margin: 0 0 0.9rem; }
+.prose-docx li { margin: 0.25rem 0; }
 
-#document-preview th,
-#html-preview th,
-#md-preview th {
-    background-color: #f9fafb;
-    font-weight: 600;
-}
+/* 表格样式 */
+.prose-docx table { width: 100%; border-collapse: collapse; margin: 0.8rem 0; }
+.prose-docx th, .prose-docx td { border: 1px solid #e5e7eb; padding: 0.5rem 0.75rem; text-align: left; }
+.prose-docx th { background: #f9fafb; font-weight: 600; }
 
-#document-preview ul,
-#document-preview ol,
-#html-preview ul,
-#html-preview ol,
-#md-preview ul,
-#md-preview ol {
-    margin-bottom: 1rem;
-    padding-left: 1.5rem;
-}
+/* 图片自动适配页面宽度 */
+.prose-docx img { max-width: 100%; height: auto; }
 
-#document-preview li,
-#html-preview li,
-#md-preview li {
-    margin-bottom: 0.25rem;
-}
+/* 代码块与行内代码 */
+.prose-docx pre { background: #f3f4f6; padding: 0.75rem 1rem; border-radius: 6px; overflow: auto; }
+.prose-docx code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
+
+/* 引用块 */
+.prose-docx blockquote { border-left: 4px solid #e5e7eb; padding-left: 0.9rem; color: #6b7280; margin: 0.9rem 0; }
+
+/* 页内分隔线 */
+.prose-docx hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1rem 0; }
 
 .prose {
     max-width: none;

@@ -199,9 +199,9 @@ class Navigation {
         const defaultBrand = 'PaperPal';
         const pageTitle = (titleEl.textContent || '').trim() || defaultBrand;
 
-        // 吸附阈值（比例）：小于该值向下滚动则收起，大于该值向上滚动则展开
-        const collapseThreshold = 0.6; // 距离顶部剩余 60% 高度以下时更倾向收起
-        const expandThreshold = 0.35;  // 放宽展开阈值，回到 35% 以上即展开
+        // 基于可见比例的双阈值：≤collapse 收起，≥expand 展开（具备回滞，避免抖动）
+        const collapseThreshold = 0.52; // 可见比例≤52% 则收起
+        const expandThreshold = 0.85;   // 可见比例≥85% 则展开
         let collapsed = false;
         let lastY = window.scrollY;
         let ticking = false;
@@ -226,7 +226,6 @@ class Navigation {
             ticking = true;
             window.requestAnimationFrame(() => {
                 const currentY = window.scrollY;
-                const scrollingDown = currentY > lastY + 1;
                 const rect = headerEl.getBoundingClientRect();
                 const height = Math.max(rect.height, 1);
                 const bottom = rect.bottom; // header 底部到视口顶部的距离
@@ -239,10 +238,10 @@ class Navigation {
                     headerEl.style.transform = `translateY(-${translate}px)`;
                 }
 
-                // 吸附逻辑
-                if (scrollingDown && ratio < collapseThreshold && !collapsed) {
+                // 基于比例的稳定收起/展开逻辑（移除对滚动方向的依赖）
+                if (ratio <= collapseThreshold && !collapsed) {
                     applyCollapsed(true);
-                } else if (!scrollingDown && collapsed && ratio > expandThreshold) {
+                } else if (ratio >= expandThreshold && collapsed) {
                     applyCollapsed(false);
                 }
 
@@ -254,6 +253,10 @@ class Navigation {
         // 初始执行一次，处理刷新后位置
         onScroll();
         window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll, { passive: true });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') onScroll();
+        });
     }
 
     setActiveNavItem() {
