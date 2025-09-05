@@ -10,6 +10,13 @@ let nameplateData = {
     currentPage: 0,
     selectedFont: 'SimHei',
     fontSize: 24,
+    // 距中轴线的纵向距离（单位 mm），上半与下半对称。
+    // 0 表示最靠近中轴线，最大不超过 34mm（由UI限制）。
+    yOffsetMm: 0,
+    // 边框尺寸（单位 mm），调整上半部分，自动对称应用到底部
+    frameWidthMm: 200,   // 水平方向最大接近纸张边（两侧各约5mm留白）
+    frameHeightMm: 135,  // 默认值，最大不超过 148.5
+    frameBorderPx: 1,
     zoomLevel: 1.0,
     panX: 0,
     panY: 0,
@@ -33,6 +40,8 @@ function initializeNameplate() {
     
     // 初始化字体选择器
     initializeFontSelector();
+    // 初始化一次示例字样
+    updateFontSamples();
 
     // 初始化渲染空状态
     renderCurrentPage();
@@ -54,6 +63,21 @@ function initializeEventListeners() {
     const fontSizeSlider = document.getElementById('font-size-slider');
     fontSizeSlider.addEventListener('input', handleFontSizeChange);
     
+    // 纵向位置滑块
+    const yPosSlider = document.getElementById('y-position-slider');
+    if (yPosSlider) {
+        yPosSlider.addEventListener('input', handleYPositionChange);
+    }
+
+    // 边框宽高滑块
+    const frameW = document.getElementById('frame-width-slider');
+    const frameH = document.getElementById('frame-height-slider');
+    if (frameW) frameW.addEventListener('input', handleFrameWidthChange);
+    if (frameH) frameH.addEventListener('input', handleFrameHeightChange);
+
+    // 初始化控件显示与默认值同步
+    syncControlDisplays();
+    
     // 按钮事件（去除“生成台签”按钮绑定，输入即生成）
     document.getElementById('download-btn').addEventListener('click', handleDownload);
     
@@ -72,44 +96,67 @@ function initializeEventListeners() {
     document.addEventListener('keydown', handleKeyboardShortcuts);
 }
 
-// 初始化字体选择器
+// 初始化字体选择器（自定义下拉，方案B）
 function initializeFontSelector() {
-    const fontPreviews = document.querySelectorAll('.font-preview');
-    fontPreviews.forEach(preview => {
-        preview.addEventListener('click', function() {
-            // 移除其他选中状态
-            fontPreviews.forEach(p => p.classList.remove('selected'));
-            // 添加选中状态
-            this.classList.add('selected');
-            // 更新选中字体
-            nameplateData.selectedFont = this.dataset.font;
-            
-            // 实时字体预览效果
-            if (window.CommonUtils) {
-                CommonUtils.showNotification(`已选择字体：${this.querySelector('.font-name').textContent}`, 'info');
-            }
-            
-            // 如果已生成台签，实时重新生成预览
+    const dropdown = document.getElementById('font-dropdown');
+    const btn = document.getElementById('font-dropdown-button');
+    const list = document.getElementById('font-dropdown-list');
+    const label = document.getElementById('font-dropdown-label');
+    if (!dropdown || !btn || !list || !label) return;
+
+    // 初始状态
+    applyFontLabel(nameplateData.selectedFont);
+
+    const openList = () => { list.classList.remove('hidden'); };
+    const closeList = () => { list.classList.add('hidden'); };
+    const toggleList = () => { list.classList.toggle('hidden'); };
+
+    btn.addEventListener('click', (e) => {
+        toggleList();
+        e.stopPropagation();
+    });
+
+    // 选项点击
+    list.querySelectorAll('.font-option').forEach(item => {
+        item.addEventListener('click', (e) => {
+            const font = item.getAttribute('data-font');
+            nameplateData.selectedFont = font;
+            applyFontLabel(font);
+            closeList();
+            updateFontSamples();
             if (nameplateData.pages.length > 0) {
                 generateNameplates(true);
+            } else {
+                renderCurrentPage();
             }
-        });
-        
-        // 添加悬停预览效果
-        preview.addEventListener('mouseenter', function() {
-            if (!this.classList.contains('selected')) {
-                this.style.transform = 'scale(1.02)';
-                this.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
-            }
-        });
-        
-        preview.addEventListener('mouseleave', function() {
-            if (!this.classList.contains('selected')) {
-                this.style.transform = 'scale(1)';
-                this.style.boxShadow = '';
-            }
+            e.stopPropagation();
         });
     });
+
+    // 点击外部关闭
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target)) {
+            closeList();
+        }
+    });
+    // ESC 关闭
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeList();
+    });
+
+    function applyFontLabel(fontKey) {
+        const map = {
+            'SimHei': { label: '黑体 (SimHei)', fam: "SimHei, '黑体', sans-serif" },
+            'SimSun': { label: '宋体 (SimSun)', fam: "SimSun, '宋体', serif" },
+            'KaiTi': { label: '楷体 (KaiTi)', fam: "KaiTi, '楷体', serif" },
+            'FangSong': { label: '仿宋 (FangSong)', fam: "FangSong, '仿宋', serif" },
+            'Microsoft YaHei': { label: '微软雅黑 (Microsoft YaHei)', fam: "'Microsoft YaHei', '微软雅黑', sans-serif" },
+            'Arial': { label: 'Arial', fam: 'Arial, sans-serif' }
+        };
+        const conf = map[fontKey] || map['SimHei'];
+        label.textContent = conf.label;
+        label.style.fontFamily = conf.fam;
+    }
 }
 
 // 处理名字输入
@@ -166,6 +213,21 @@ function handleFontSizeChange() {
     }
 }
 
+// 处理纵向位置变化（Y轴）
+function handleYPositionChange() {
+    const slider = document.getElementById('y-position-slider');
+    const display = document.getElementById('y-position-display');
+    if (!slider || !display) return;
+    // 安全限制到 0-34 范围（距中轴线的距离，半幅最大可移动范围）
+    const val = Math.max(0, Math.min(34, parseInt(slider.value)));
+    nameplateData.yOffsetMm = val;
+    display.textContent = `${val}mm`;
+    // 若已生成，实时刷新
+    if (nameplateData.pages.length > 0) {
+        generateNameplates(true);
+    }
+}
+
 // 生成台签
 function generateNameplates(silent = false) {
     if (nameplateData.names.length === 0) {
@@ -216,6 +278,7 @@ function renderCurrentPage() {
         previewContainer.innerHTML = emptyPageHTML;
         autoFitPreview();
         enableCanvasPan();
+        // 空白页无需适配
         return;
     }
     
@@ -228,6 +291,15 @@ function renderCurrentPage() {
     autoFitPreview();
     // 启用画布拖拽
     enableCanvasPan();
+
+    // 渲染后执行文本自适配，避免预览与导出时文字被裁剪
+    // 放到下一帧，确保DOM布局完成
+    requestAnimationFrame(() => {
+        const pageElement = document.querySelector('.nameplate-page');
+        if (pageElement) {
+            adjustNameplateTextToFit(pageElement);
+        }
+    });
 }
 
 // 创建台签页面HTML
@@ -236,133 +308,195 @@ function createNameplatePage(names, pageIndex) {
     const fontSize = nameplateData.fontSize;
     
     let nameplateItems = '';
+    // 计算显示名：当选择 Arial 且包含中文时，转为英文拼音
+    const rawName = names[0] || '';
+    const displayName = (nameplateData.selectedFont === 'Arial' && /[\u4e00-\u9fff]/.test(rawName))
+        ? convertToEnglish(rawName)
+        : rawName;
     
-    // 上半部分台签（正向）- A4纵向中轴线对称
-    if (names[0]) {
+    // 上半部分台签：以“文字底边到中轴线”的距离为度量
+    // 做法：创建半页容器（顶到中轴线），在容器内放置绝对定位的文本框，bottom = yOffsetMm
+    if (rawName) {
         nameplateItems += `
             <div class="nameplate-item" style="
-                top: 35mm;
+                position: absolute;
+                top: 0;
                 left: 15mm;
                 width: 180mm;
-                height: 80mm;
+                height: 148.5mm;
                 font-family: ${fontFamily};
-                font-size: ${fontSize}px;
-                font-weight: bold;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                display: block;
             ">
                 <div style="
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    bottom: ${nameplateData.yOffsetMm}mm;
                     text-align: center;
-                    word-wrap: break-word;
+                    white-space: nowrap;
                     line-height: 1.3;
-                    max-width: 90%;
                     overflow: hidden;
                     color: #1a1a1a;
+                    font-size: ${fontSize}px;
+                    font-weight: bold;
                 ">
-                    ${escapeHtml(names[0])}
+                    ${escapeHtml(displayName)}
                 </div>
             </div>
         `;
     }
     
-    // 下半部分台签（倒置）- 与上半部分相同名字
-    if (names[0]) {
+    // 下半部分台签：同理，以“文字底边到中轴线”的距离为度量
+    // 做法：创建半页容器（中轴线到底部），在容器内放置绝对定位的文本框，top = yOffsetMm，并对文本旋转180°
+    if (rawName) {
         nameplateItems += `
             <div class="nameplate-item" style="
-                bottom: 35mm;
+                position: absolute;
+                bottom: 0;
                 left: 15mm;
                 width: 180mm;
-                height: 80mm;
+                height: 148.5mm;
                 font-family: ${fontFamily};
-                font-size: ${fontSize}px;
-                font-weight: bold;
-                transform: rotate(180deg);
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                display: block;
             ">
                 <div style="
+                    position: absolute;
+                    left: 50%;
+                    transform: translateX(-50%) rotate(180deg);
+                    top: ${nameplateData.yOffsetMm}mm;
                     text-align: center;
-                    word-wrap: break-word;
+                    white-space: nowrap;
                     line-height: 1.3;
-                    max-width: 90%;
                     overflow: hidden;
                     color: #1a1a1a;
+                    font-size: ${fontSize}px;
+                    font-weight: bold;
                 ">
-                    ${escapeHtml(names[0])}
+                    ${escapeHtml(displayName)}
                 </div>
             </div>
         `;
     }
-    
-    // 中轴线（仅预览时显示）- 增强视觉效果
-    const centerLine = `
-        <div class="center-line" style="
+
+    // 上下半幅边框（无中轴线）。只需调整一侧尺寸，另一侧镜像
+    const frameLeft = (210 - nameplateData.frameWidthMm) / 2;
+    const borderStyle = `border: ${nameplateData.frameBorderPx}px solid #333; box-sizing: border-box;`;
+    const topFrame = `
+        <div class="half-frame" style="
             position: absolute;
-            top: 50%;
-            left: 5mm;
-            right: 5mm;
-            height: 1px;
-            background: linear-gradient(90deg, transparent 0%, #ccc 10%, #666 50%, #ccc 90%, transparent 100%);
-            border-top: 1px dashed #999;
-            opacity: 0.7;
-            z-index: 10;
-            transform: translateY(-0.5px);
+            left: ${frameLeft}mm;
+            top: ${148.5 - nameplateData.frameHeightMm}mm;
+            width: ${nameplateData.frameWidthMm}mm;
+            height: ${nameplateData.frameHeightMm}mm;
+            ${borderStyle}
+            border-bottom-width: ${nameplateData.frameBorderPx}px;
         "></div>
-        <div class="fold-indicators" style="
+    `;
+    const bottomFrame = `
+        <div class="half-frame" style="
             position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            z-index: 11;
-        ">
-            <div class="fold-indicator-left" style="
-                position: absolute;
-                left: 3mm;
-                top: -3px;
-                width: 6px;
-                height: 6px;
-                background: #666;
-                border-radius: 50%;
-                opacity: 0.8;
-            "></div>
-            <div class="fold-indicator-right" style="
-                position: absolute;
-                right: 3mm;
-                top: -3px;
-                width: 6px;
-                height: 6px;
-                background: #666;
-                border-radius: 50%;
-                opacity: 0.8;
-            "></div>
-        </div>
-        <div class="fold-text" style="
-            position: absolute;
-            top: calc(50% + 10px);
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 10px;
-            color: #666;
-            font-family: Arial, sans-serif;
-            background: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            opacity: 0.9;
-        ">中轴线对称折叠</div>
+            left: ${frameLeft}mm;
+            top: 148.5mm;
+            width: ${nameplateData.frameWidthMm}mm;
+            height: ${nameplateData.frameHeightMm}mm;
+            ${borderStyle}
+            border-top-width: ${nameplateData.frameBorderPx}px;
+        "></div>
     `;
     
     return `
         <div class="nameplate-page print-area" data-page="${pageIndex}" style="
+            position: relative;
+            width: 210mm;
+            height: 297mm;
             background: #fafafa;
             border: 1px solid #e0e0e0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         ">
             ${nameplateItems}
-            ${centerLine}
+            ${topFrame}
+            ${bottomFrame}
         </div>
     `;
+}
+
+// 自适应台签文本以避免裁剪
+function adjustNameplateTextToFit(pageElement) {
+    if (!pageElement) return;
+    // 选中每个台签项内的文本容器（第二层 div）
+    const items = pageElement.querySelectorAll('.nameplate-item');
+    items.forEach(item => {
+        const textDiv = item && item.querySelector('div');
+        if (!textDiv) return;
+
+        // 基于当前设置的字体大小开始
+        const computed = window.getComputedStyle(textDiv);
+        let baseSize = parseFloat(computed.fontSize || nameplateData.fontSize || 24);
+        // 设定边界，避免太小
+        const minSize = 10;
+        fitTextInContainer(textDiv, item, baseSize, minSize);
+    });
+}
+
+// 将文本缩放至容器内，优先不增大，只在过大时缩小
+function fitTextInContainer(textEl, containerEl, startSize, minSize) {
+    if (!textEl || !containerEl) return;
+    // 禁止换行，避免中文被自动按字折行
+    textEl.style.whiteSpace = 'nowrap';
+    textEl.style.wordBreak = 'normal';
+    // 使用 92% 的宽度预算，给左右留一点安全边距
+    const safetyRatio = 0.92;
+
+    // 读取容器可用宽高
+    const containerStyles = window.getComputedStyle(containerEl);
+    const cPaddingX = parseFloat(containerStyles.paddingLeft) + parseFloat(containerStyles.paddingRight);
+    const cPaddingY = parseFloat(containerStyles.paddingTop) + parseFloat(containerStyles.paddingBottom);
+    const maxWidth = containerEl.clientWidth - cPaddingX;
+    const maxHeight = containerEl.clientHeight - cPaddingY;
+    if (maxWidth <= 0 || maxHeight <= 0) return;
+
+    // 二分缩放，避免逐像素循环过慢
+    let low = minSize;
+    let high = Math.max(startSize, minSize);
+    let best = low;
+
+    // 如果起始就小于最小，则从起始作为上界
+    if (startSize < minSize) {
+        high = minSize;
+    }
+
+    // 先尝试从当前大小开始，若已适配则无需缩小
+    textEl.style.fontSize = `${startSize}px`;
+    // 强制一次 reflow
+    void textEl.offsetHeight;
+    if (isWithin(textEl, maxWidth * safetyRatio, maxHeight * safetyRatio)) {
+        return; // 已经合适
+    }
+
+    // 将上界设为当前大小，下界为 min
+    low = minSize;
+    high = startSize;
+
+    for (let iter = 0; iter < 20 && high - low > 0.5; iter++) {
+        const mid = (low + high) / 2;
+        textEl.style.fontSize = `${mid}px`;
+        void textEl.offsetHeight;
+        if (isWithin(textEl, maxWidth * safetyRatio, maxHeight * safetyRatio)) {
+            best = mid;
+            low = mid; // 可以更大一些
+        } else {
+            high = mid; // 太大，缩小
+        }
+    }
+
+    textEl.style.fontSize = `${Math.max(minSize, Math.min(best, startSize))}px`;
+
+    function isWithin(el, w, h) {
+        // 使用 scroll 尺寸判断内容真实尺寸
+        const neededW = Math.max(el.scrollWidth, el.clientWidth);
+        const neededH = Math.max(el.scrollHeight, el.clientHeight);
+        return neededW <= w && neededH <= h;
+    }
 }
 
 // 获取字体族
@@ -389,30 +523,37 @@ function escapeHtml(text) {
 function updateFontSamples() {
     const firstNameInput = nameplateData.names.length > 0 ? nameplateData.names[0] : '张三';
 
-    // 更新所有字体预览样本
+    // 1) 更新下拉下方的实时预览块
+    const live = document.getElementById('font-live-preview');
+    if (live) {
+        const fam = getFontFamily(nameplateData.selectedFont);
+        live.style.fontFamily = fam;
+        const hasChinese = /[\u4e00-\u9fff]/.test(firstNameInput);
+        if (nameplateData.selectedFont === 'Arial' && hasChinese) {
+            const englishName = convertToEnglish(firstNameInput);
+            live.textContent = englishName || 'Zhang San';
+        } else {
+            live.textContent = firstNameInput || '张三';
+        }
+    }
+
+    // 2) 若仍存在旧的示例样本元素（兼容旧结构），也做一次更新
     const samples = document.querySelectorAll('.font-sample');
     samples.forEach(sample => {
-        // 对于Arial字体，显示英文
-        if (sample.id === 'sample-Arial') {
-            sample.textContent = firstNameInput.replace(/[\u4e00-\u9fff]/g, 'Zhang San');
-        } else {
-            sample.textContent = firstNameInput;
-        }
-
-        // 字体选择区的文字大小保持固定为16px，不受滑块影响
+        sample.textContent = firstNameInput;
         sample.style.fontSize = '16px';
-
-        // 确保字体样式正确应用
-        const fontData = sample.parentElement.dataset.font;
-        if (fontData) {
-            sample.style.fontFamily = getFontFamily(fontData);
-        }
     });
 }
 
 // 简单的中文名转英文名（示例用）
 function convertToEnglish(chineseName) {
-    const nameMap = {
+    if (!chineseName || typeof chineseName !== 'string') return '';
+    const name = chineseName.trim();
+    // 如果已经是英文/包含拉丁字母，直接返回
+    if (/[A-Za-z]/.test(name)) return name;
+
+    // 如果未加载拼音库，回退到简单映射
+    const simpleMap = {
         '张三': 'Zhang San',
         '李四': 'Li Si',
         '王五': 'Wang Wu',
@@ -420,7 +561,38 @@ function convertToEnglish(chineseName) {
         '陈七': 'Chen Qi',
         '刘八': 'Liu Ba'
     };
-    return nameMap[chineseName] || chineseName;
+    const p = window.pinyinPro || window.pinyin; // 兼容可能的全局名
+    if (!p || !p.pinyin) {
+        return simpleMap[name] || 'Zhang San';
+    }
+
+    // 常见复姓列表
+    const multiSurnames = ['欧阳','太史','端木','上官','司马','东方','独孤','南宫','夏侯','诸葛','闻人','皇甫','公孙','长孙','慕容','司徒','令狐','钟离','宇文','鲜于','闾丘','子车','亓官','司空','第五','公良','澹台','公冶','宗政','濮阳','淳于','单于','太叔','申屠','公孙','仲孙','轩辕','令狐','逢孙','仲长','司寇','巫马','公西','颛孙','壤驷','公良','乐正','宰父','谷梁','拓跋','夹谷','段干','百里','东郭','微生','梁丘','左丘','东门','西门','南门','北堂','呼延','羊舌','乌雅','完颜','纳兰','赫连','耶律'];
+
+    let surname = '';
+    let given = '';
+    if (name.length >= 2 && multiSurnames.includes(name.slice(0,2))) {
+        surname = name.slice(0,2);
+        given = name.slice(2);
+    } else {
+        surname = name.slice(0,1);
+        given = name.slice(1);
+    }
+
+    // 使用 pinyin-pro 转换，无声调，首字母大写
+    const pinyinLib = (typeof window !== 'undefined' && window.pinyinPro) ? window.pinyinPro : null;
+    // 若拼音库不可用，回退到简单映射或原名
+    if (!pinyinLib || typeof pinyinLib.pinyin !== 'function') {
+        return simpleMap[name] || name;
+    }
+    const opt = { toneType: 'none', type: 'array' };
+    const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+    const surnamePyArr = pinyinLib.pinyin(surname, opt);
+    const givenPyArr = pinyinLib.pinyin(given, opt);
+    const surnameEn = cap((surnamePyArr && surnamePyArr[0]) || '');
+    const givenEn = (givenPyArr || []).map(x => cap(x)).join(' ');
+    const full = givenEn ? `${surnameEn} ${givenEn}` : surnameEn;
+    return full || (simpleMap[name] || 'Zhang San');
 }
 
 // 统计信息模块已移除，无需更新
@@ -518,6 +690,16 @@ async function downloadSinglePage() {
         if (foldIndicators) foldIndicators.style.display = 'none';
         if (foldText) foldText.style.display = 'none';
         
+        // 在截图前进行文本自适配，确保不会被裁剪
+        adjustNameplateTextToFit(pageElement);
+        // 等待样式生效
+        await new Promise(r => setTimeout(r, 50));
+        
+        // 导出前：临时放开文本容器的 overflow，避免被裁剪
+        const textContainers = Array.from(pageElement.querySelectorAll('.nameplate-item > div'));
+        const prevOverflow = textContainers.map(el => el.style.overflow);
+        textContainers.forEach(el => { el.style.overflow = 'visible'; });
+
         // 使用html2canvas生成图片
         const canvas = await html2canvas(pageElement, {
             scale: 3, // 提高分辨率
@@ -539,6 +721,9 @@ async function downloadSinglePage() {
         const imgData = canvas.toDataURL('image/png', 0.95);
         pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
         
+        // 恢复 overflow 样式
+        textContainers.forEach((el, i) => { el.style.overflow = prevOverflow[i] || ''; });
+
         // 生成文件名
         const currentPageNames = nameplateData.pages[nameplateData.currentPage];
         const namesPart = (currentPageNames[0] || '').substring(0, 20);
@@ -557,7 +742,7 @@ async function downloadSinglePage() {
     }
 }
 
-// 批量下载所有页面
+// 批量下载所有页面（合并为一个多页PDF）
 async function downloadAllPages() {
     if (nameplateData.pages.length === 0) {
         if (window.CommonUtils) {
@@ -567,13 +752,13 @@ async function downloadAllPages() {
     }
     
     try {
-        const zip = new JSZip();
         const { jsPDF } = window.jspdf;
         const originalPage = nameplateData.currentPage;
+        const pdf = new jsPDF('p', 'mm', 'a4');
         
         // 显示进度提示
         if (window.CommonUtils) {
-            CommonUtils.showNotification(`正在生成 ${nameplateData.pages.length} 个PDF文件，请稍候...`, 'info');
+            CommonUtils.showNotification(`正在合并生成 ${nameplateData.pages.length} 页PDF，请稍候...`, 'info');
         }
         
         // 为每页生成PDF
@@ -588,7 +773,8 @@ async function downloadAllPages() {
             renderCurrentPage();
             
             // 等待渲染完成
-            await new Promise(resolve => setTimeout(resolve, 800));
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(r => requestAnimationFrame(r));
             
             const pageElement = document.querySelector('.nameplate-page');
             if (!pageElement) continue;
@@ -602,6 +788,16 @@ async function downloadAllPages() {
             if (foldIndicators) foldIndicators.style.display = 'none';
             if (foldText) foldText.style.display = 'none';
             
+            // 在截图前进行文本自适配，确保不会被裁剪
+            adjustNameplateTextToFit(pageElement);
+            // 等待样式应用
+            await new Promise(r => setTimeout(r, 50));
+            
+            // 导出前：临时放开文本容器的 overflow，避免被裁剪
+            const textContainers = Array.from(pageElement.querySelectorAll('.nameplate-item > div'));
+            const prevOverflow = textContainers.map(el => el.style.overflow);
+            textContainers.forEach(el => { el.style.overflow = 'visible'; });
+
             // 生成canvas
             const canvas = await html2canvas(pageElement, {
                 scale: 3,
@@ -611,45 +807,27 @@ async function downloadAllPages() {
                 allowTaint: false
             });
             
+            // 恢复 overflow 样式
+            textContainers.forEach((el, i) => { el.style.overflow = prevOverflow[i] || ''; });
+            
             // 恢复预览元素
             if (centerLine) centerLine.style.display = '';
             if (foldIndicators) foldIndicators.style.display = '';
             if (foldText) foldText.style.display = '';
             
-            // 转换为PDF
-            const pdf = new jsPDF('p', 'mm', 'a4');
             const imgData = canvas.toDataURL('image/png', 0.95);
+            // 添加到合并PDF
+            if (i > 0) {
+                // 追加新页面（保持与首页相同的A4纵向规格）
+                pdf.addPage();
+            }
             pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-            
-            // 生成文件名
-            const pageNames = nameplateData.pages[i];
-            const namesPart = (pageNames[0] || '').substring(0, 20);
-            const fileName = `台签_${namesPart}_第${i + 1}页.pdf`;
-            
-            // 添加到ZIP
-            const pdfBlob = pdf.output('blob');
-            zip.file(fileName, pdfBlob);
         }
         
-        // 生成ZIP文件
-        if (window.CommonUtils) {
-            CommonUtils.showNotification('正在打包文件...', 'info');
-        }
-        
-        const zipBlob = await zip.generateAsync({ 
-            type: 'blob',
-            compression: 'DEFLATE',
-            compressionOptions: { level: 6 }
-        });
-        
-        // 下载ZIP
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(zipBlob);
+        // 下载合并PDF
         const timestamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-');
-        link.download = `台签批量下载_${timestamp}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const mergedName = `台签_合并_${nameplateData.pages.length}页_${timestamp}.pdf`;
+        pdf.save(mergedName);
         
         // 恢复到原始页面
         nameplateData.currentPage = originalPage;
@@ -657,7 +835,7 @@ async function downloadAllPages() {
         updatePaginationControls();
         
         if (window.CommonUtils) {
-            CommonUtils.showNotification(`批量下载成功！共 ${nameplateData.pages.length} 个文件`, 'success');
+            CommonUtils.showNotification(`合并下载成功！共 ${nameplateData.pages.length} 页`, 'success');
         }
     } catch (error) {
         console.error('批量下载失败:', error);
@@ -1148,7 +1326,8 @@ function autoFitPreview() {
     const paddingV = 24; // 上下预留
     const paddingH = 24; // 左右预留
     const availableHeight = Math.max(200, window.innerHeight - rect.top - paddingV);
-    const availableWidth = Math.max(200, rect.width - paddingH);
+    // 使用 clientWidth 避免滚动条出现/消失造成的宽度抖动
+    const availableWidth = Math.max(200, previewContainer.clientWidth - paddingH);
 
     // 实际页面渲染尺寸（像素）
     const pageHeight = pageEl.offsetHeight || 1;
@@ -1163,7 +1342,7 @@ function autoFitPreview() {
 
     nameplateData.zoomLevel = scale;
     // 重置平移，默认在容器中水平/垂直居中显示
-    const containerWidth = rect.width;
+    const containerWidth = previewContainer.clientWidth;
     const scaledWidth = pageWidth * scale;
     const scaledHeight = pageHeight * scale;
     nameplateData.panX = Math.floor((containerWidth - scaledWidth) / 2);
@@ -1173,6 +1352,7 @@ function autoFitPreview() {
     // 固定容器高度并隐藏滚动条，保证无滚轮一屏显示
     previewContainer.style.height = `${Math.floor(availableHeight)}px`;
     previewContainer.style.overflow = 'hidden';
+    previewContainer.style.width = '100%';
 }
 
 // 统一应用缩放与平移
@@ -1226,24 +1406,9 @@ function enableCanvasPan() {
         const newPanX = nameplateData._panStartX + dx;
         const newPanY = nameplateData._panStartY + dy;
         
-        // 获取容器和页面尺寸
-        const previewContainer = document.getElementById('preview-container');
-        const pageEl = previewContainer.querySelector('.nameplate-page');
-        if (!pageEl) return;
-        
-        const containerRect = previewContainer.getBoundingClientRect();
-        const pageWidth = pageEl.offsetWidth * nameplateData.zoomLevel;
-        const pageHeight = pageEl.offsetHeight * nameplateData.zoomLevel;
-        
-        // 计算边界限制
-        const minPanX = Math.min(0, containerRect.width - pageWidth);
-        const maxPanX = Math.max(0, containerRect.width - pageWidth);
-        const minPanY = Math.min(0, containerRect.height - pageHeight);
-        const maxPanY = Math.max(0, containerRect.height - pageHeight);
-        
-        // 限制平移范围
-        nameplateData.panX = Math.max(minPanX, Math.min(maxPanX, newPanX));
-        nameplateData.panY = Math.max(minPanY, Math.min(maxPanY, newPanY));
+        // 允许无限平移：不做边界限制
+        nameplateData.panX = newPanX;
+        nameplateData.panY = newPanY;
         
         applyPreviewTransform();
     };
@@ -1317,51 +1482,19 @@ function updateDownloadButtonText() {
         downloadBtnText.textContent = '单张下载';
         downloadBtn.querySelector('i').className = 'bi bi-download mr-1';
     } else {
-        downloadBtnText.textContent = '批量下载';
+        downloadBtnText.textContent = '合并下载';
         downloadBtn.querySelector('i').className = 'bi bi-archive mr-1';
     }
 }
 
 // 创建空白A4页面
 function createEmptyA4Page() {
-    // 优化的中轴线（仅预览时显示）
-    const centerLine = `
-        <div class="center-line" style="
-            position: absolute;
-            top: 50%;
-            left: 5mm;
-            right: 5mm;
-            height: 1px;
-            background: linear-gradient(90deg, transparent 0%, #ddd 10%, #999 50%, #ddd 90%, transparent 100%);
-            transform: translateY(-0.5px);
-            z-index: 10;
-            opacity: 0.8;
-        "></div>
-        <div class="fold-indicators" style="
-            position: absolute;
-            top: 50%;
-            left: 10mm;
-            right: 10mm;
-            height: 0;
-            border-top: 1px dashed #bbb;
-            transform: translateY(-0.5px);
-            z-index: 5;
-            opacity: 0.6;
-        "></div>
-        <div class="fold-text" style="
-            position: absolute;
-            top: calc(50% + 12px);
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 11px;
-            color: #888;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 3px 8px;
-            border-radius: 4px;
-            opacity: 0.8;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        ">中轴线对称折叠</div>
+    // 仅显示上下半幅边框，不显示中轴线
+    const frameLeft = (210 - nameplateData.frameWidthMm) / 2;
+    const borderStyle = `border: ${nameplateData.frameBorderPx}px solid #333; box-sizing: border-box;`;
+    const frames = `
+        <div class="half-frame" style="position:absolute; left:${frameLeft}mm; top:${148.5 - nameplateData.frameHeightMm}mm; width:${nameplateData.frameWidthMm}mm; height:${nameplateData.frameHeightMm}mm; ${borderStyle}"></div>
+        <div class="half-frame" style="position:absolute; left:${frameLeft}mm; top:148.5mm; width:${nameplateData.frameWidthMm}mm; height:${nameplateData.frameHeightMm}mm; ${borderStyle}"></div>
     `;
     
     return `
@@ -1370,9 +1503,44 @@ function createEmptyA4Page() {
             border: 1px solid #e0e0e0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         ">
-            ${centerLine}
+            ${frames}
         </div>
     `;
+}
+
+// 处理边框宽度调整（mm）
+function handleFrameWidthChange() {
+    const slider = document.getElementById('frame-width-slider');
+    const display = document.getElementById('frame-width-display');
+    if (!slider || !display) return;
+    // 允许范围 60–200mm
+    const val = Math.max(60, Math.min(200, parseInt(slider.value)));
+    nameplateData.frameWidthMm = val;
+    display.textContent = `${val}mm`;
+    if (nameplateData.pages.length > 0) {
+        generateNameplates(true);
+    } else {
+        // 无名字时也需要刷新空白A4预览以反映边框变化
+        renderCurrentPage();
+        autoFitPreview();
+    }
+}
+
+// 处理边框高度调整（mm）
+function handleFrameHeightChange() {
+    const slider = document.getElementById('frame-height-slider');
+    const display = document.getElementById('frame-height-display');
+    if (!slider || !display) return;
+    // 允许范围 60–148mm（不超过半幅高）
+    const val = Math.max(60, Math.min(148, parseInt(slider.value)));
+    nameplateData.frameHeightMm = val;
+    display.textContent = `${val}mm`;
+    if (nameplateData.pages.length > 0) {
+        generateNameplates(true);
+    } else {
+        renderCurrentPage();
+        autoFitPreview();
+    }
 }
 
 // 键盘快捷键处理

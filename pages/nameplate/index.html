@@ -139,8 +139,8 @@
                 </div>
 
                 <!-- 中间预览区域 -->
-                <div class="flex-[2]">
-                    <div class="bg-white rounded-lg shadow-lg p-6 h-full">
+                <div class="flex-[2] min-h-0">
+                    <div class="bg-white rounded-lg shadow-lg p-6 h-full flex flex-col min-h-0" style="overflow: hidden;">
                         <div class="flex justify-between items-center mb-4">
                             <h2 class="text-xl font-semibold text-gray-800">
                                 <i class="bi bi-eye mr-2"></i>预览区域
@@ -178,8 +178,10 @@
                             </div>
                         </div>
                         
-                        <div id="preview-container" class="border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center" style="height: calc(100% - 60px);">
-                            <!-- 默认显示空白A4纸 -->
+                        <div class="flex-1 min-h-0 rounded-lg overflow-hidden">
+                            <div id="preview-container" class="h-full w-full overflow-auto border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center" style="box-sizing: border-box; max-height: 100%; max-width: 100%;">
+                                <!-- 默认显示空白A4纸 -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -200,7 +202,7 @@
                                 type="range" 
                                 id="font-size-slider" 
                                 min="16" 
-                                max="56" 
+                                max="200" 
                                 step="2" 
                                 value="24" 
                                 class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
@@ -208,39 +210,94 @@
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
                                 <span>16px</span>
                                 <span>32px</span>
-                                <span>56px</span>
+                                <span>200px</span>
                             </div>
                         </div>
 
-                        <!-- 字体选择 -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-3">选择字体</label>
-                            <div class="space-y-3">
-                                <div class="font-preview selected" data-font="SimHei">
-                                    <div class="font-name">黑体</div>
-                                    <div class="font-sample" id="sample-SimHei" style="font-family: 'SimHei', '黑体', sans-serif;">张三</div>
-                                </div>
-                                <div class="font-preview" data-font="SimSun">
-                                    <div class="font-name">宋体</div>
-                                    <div class="font-sample" id="sample-SimSun" style="font-family: 'SimSun', '宋体', serif;">张三</div>
-                                </div>
-                                <div class="font-preview" data-font="KaiTi">
-                                    <div class="font-name">楷体</div>
-                                    <div class="font-sample" id="sample-KaiTi" style="font-family: 'KaiTi', '楷体', serif;">张三</div>
-                                </div>
-                                <div class="font-preview" data-font="FangSong">
-                                    <div class="font-name">仿宋</div>
-                                    <div class="font-sample" id="sample-FangSong" style="font-family: 'FangSong', '仿宋', serif;">张三</div>
-                                </div>
-                                <div class="font-preview" data-font="Microsoft YaHei">
-                                    <div class="font-name">微软雅黑</div>
-                                    <div class="font-sample" id="sample-Microsoft-YaHei" style="font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;">张三</div>
-                                </div>
-                                <div class="font-preview" data-font="Arial">
-                                    <div class="font-name">Arial</div>
-                                    <div class="font-sample" id="sample-Arial" style="font-family: 'Arial', sans-serif;">Zhang San</div>
-                                </div>
+                        <!-- 纵向位置（Y轴）控制：距中轴线的距离，限制在半幅A4可移动区域内 -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                纵向位置（距中轴线）：<span id="y-position-display" class="text-blue-600 font-semibold">0mm</span>
+                            </label>
+                            <input
+                                type="range"
+                                id="y-position-slider"
+                                min="0"
+                                max="34"
+                                step="1"
+                                value="0"
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            >
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>0mm</span>
+                                <span>17mm</span>
+                                <span>34mm</span>
                             </div>
+                        </div>
+
+                        <!-- 边框宽度控制（mm） -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                边框宽度：<span id="frame-width-display" class="text-blue-600 font-semibold">200mm</span>
+                            </label>
+                            <input 
+                                type="range" 
+                                id="frame-width-slider" 
+                                min="60" 
+                                max="200" 
+                                step="1" 
+                                value="200" 
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            >
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>60mm</span>
+                                <span>130mm</span>
+                                <span>200mm</span>
+                            </div>
+                        </div>
+
+                        <!-- 边框高度控制（mm，上半部分；下半镜像） -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                边框高度（半幅）：<span id="frame-height-display" class="text-blue-600 font-semibold">135mm</span>
+                            </label>
+                            <input 
+                                type="range" 
+                                id="frame-height-slider" 
+                                min="60" 
+                                max="148" 
+                                step="1" 
+                                value="135" 
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                            >
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>60mm</span>
+                                <span>104mm</span>
+                                <span>148mm</span>
+                            </div>
+                        </div>
+
+                        <!-- 字体选择（自定义下拉，方案B） -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">选择字体</label>
+                            <div id="font-dropdown" class="relative">
+                                <button id="font-dropdown-button" type="button" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-between">
+                                    <span id="font-dropdown-label" style="font-family: SimHei, '黑体', sans-serif;">黑体 (SimHei)</span>
+                                    <i class="bi bi-caret-down-fill text-gray-500"></i>
+                                </button>
+                                <ul id="font-dropdown-list" class="hidden absolute z-20 mt-1 w-full max-h-60 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                                    <li class="px-3 py-2 hover:bg-gray-100 cursor-pointer font-option" data-font="SimHei" style="font-family: SimHei, '黑体', sans-serif;">黑体 (SimHei)</li>
+                                    <li class="px-3 py-2 hover:bg-gray-100 cursor-pointer font-option" data-font="SimSun" style="font-family: SimSun, '宋体', serif;">宋体 (SimSun)</li>
+                                    <li class="px-3 py-2 hover:bg-gray-100 cursor-pointer font-option" data-font="KaiTi" style="font-family: KaiTi, '楷体', serif;">楷体 (KaiTi)</li>
+                                    <li class="px-3 py-2 hover:bg-gray-100 cursor-pointer font-option" data-font="FangSong" style="font-family: FangSong, '仿宋', serif;">仿宋 (FangSong)</li>
+                                    <li class="px-3 py-2 hover:bg-gray-100 cursor-pointer font-option" data-font="Microsoft YaHei" style="font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;">微软雅黑 (Microsoft YaHei)</li>
+                                    <li class="px-3 py-2 hover:bg-gray-100 cursor-pointer font-option" data-font="Arial" style="font-family: Arial, sans-serif;">Arial</li>
+                                </ul>
+                            </div>
+                            <div id="font-live-preview" class="mt-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded text-center text-lg font-bold text-gray-800">
+                                张三 / ABC
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">提示：列表项直接以对应字体展示，若系统未安装该字体，显示效果可能因平台而异。</p>
                         </div>
                     </div>
                 </div>
@@ -254,6 +311,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 中文转拼音库：pinyin-pro -->
+    <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.19.7/dist/index.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

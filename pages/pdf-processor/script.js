@@ -8,6 +8,12 @@ let currentPage = 1;
 let totalPages = 0;
 let viewMode = 'single'; // 'continuous' 或 'single'
 let rotation = 0; // 0, 90, 180, 270
+// 叠加文字配置
+const overlayConfig = {
+    text: '示例文字',
+    fontSize: 48, // px, 最大 200
+    vOffset: 0 // px，单边控制，另一侧对称
+};
 
 // 设置PDF.js worker路径
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -15,6 +21,46 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 document.addEventListener('DOMContentLoaded', function() {
     initializePdfProcessor();
 });
+
+// 初始化叠加文字控制（顶层定义）
+function initializeOverlayControls() {
+    const textInput = document.getElementById('overlay-text');
+    const fontSizeRange = document.getElementById('overlay-font-size');
+    const fontSizeVal = document.getElementById('overlay-font-size-val');
+    const vOffsetRange = document.getElementById('overlay-v-offset');
+    const vOffsetVal = document.getElementById('overlay-v-offset-val');
+
+    if (!textInput || !fontSizeRange || !vOffsetRange) return;
+
+    // 初始化显示
+    textInput.value = overlayConfig.text || '';
+    fontSizeRange.min = '10';
+    fontSizeRange.max = '200';
+    fontSizeRange.value = overlayConfig.fontSize;
+    if (fontSizeVal) fontSizeVal.textContent = overlayConfig.fontSize + 'px';
+    vOffsetRange.value = overlayConfig.vOffset;
+    if (vOffsetVal) vOffsetVal.textContent = overlayConfig.vOffset + 'px';
+
+    textInput.addEventListener('input', () => {
+        overlayConfig.text = textInput.value;
+        updateAllOverlays();
+    });
+
+    fontSizeRange.addEventListener('input', () => {
+        const raw = parseInt(fontSizeRange.value || '48', 10);
+        const val = isNaN(raw) ? 48 : raw;
+        overlayConfig.fontSize = Math.min(200, Math.max(10, val));
+        if (fontSizeVal) fontSizeVal.textContent = overlayConfig.fontSize + 'px';
+        updateAllOverlays();
+    });
+
+    vOffsetRange.addEventListener('input', () => {
+        const raw = parseInt(vOffsetRange.value || '0', 10);
+        overlayConfig.vOffset = isNaN(raw) ? 0 : raw;
+        if (vOffsetVal) vOffsetVal.textContent = overlayConfig.vOffset + 'px';
+        updateAllOverlays();
+    });
+}
 
 function initializePdfProcessor() {
     // 设置导航活动项
@@ -39,6 +85,9 @@ function initializePdfProcessor() {
     
     // 初始化缩放选择器
     initializeZoomSelector();
+    
+    // 初始化叠加文字控制
+    initializeOverlayControls();
     
     // 同步预览区域高度
     syncPreviewHeight();
@@ -301,6 +350,89 @@ async function renderSinglePage(pageNum, container) {
     pageWrapper.appendChild(canvas);
     pageContainer.appendChild(pageWrapper);
     container.appendChild(pageContainer);
+
+    // 渲染/更新本页叠加文字层
+    createOrUpdateOverlayForPage(pageContainer, canvas);
+}
+
+// 为某页创建或更新叠加文字层（上下对称，单滑块控制）
+function createOrUpdateOverlayForPage(pageContainer, canvas) {
+    if (!pageContainer || !canvas) return;
+
+    // 确保wrapper相对定位
+    const wrapper = canvas.parentElement;
+    if (wrapper && getComputedStyle(wrapper).position === 'static') {
+        wrapper.style.position = 'relative';
+    }
+
+    // 获取/创建容器
+    let overlay = wrapper.querySelector('.overlay-text-container');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'overlay-text-container';
+        overlay.style.cssText = `
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        `;
+        wrapper.appendChild(overlay);
+    }
+
+    // 获取/创建上下两块文本
+    let topText = overlay.querySelector('.overlay-text-top');
+    let bottomText = overlay.querySelector('.overlay-text-bottom');
+    if (!topText) {
+        topText = document.createElement('div');
+        topText.className = 'overlay-text-top';
+        overlay.appendChild(topText);
+    }
+    if (!bottomText) {
+        bottomText = document.createElement('div');
+        bottomText.className = 'overlay-text-bottom';
+        overlay.appendChild(bottomText);
+    }
+
+    // 通用样式
+    const commonCss = `
+        position: absolute;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        white-space: nowrap;
+        color: rgba(0,0,0,0.85);
+        text-shadow: 0 1px 2px rgba(255,255,255,0.6);
+        font-weight: 600;
+        line-height: 1;
+        user-select: none;
+    `;
+
+    // 画布尺寸（已按当前缩放）
+    const h = canvas.height;
+
+    // 按要求：仅单边控制纵向位移，另一半对称
+    const v = overlayConfig.vOffset || 0; // px
+    const topY = h / 2 - v;     // 上半：向下为正值时靠近中心
+    const bottomY = h / 2 + v;  // 下半：对称
+
+    // 应用文本与样式
+    [topText, bottomText].forEach(el => {
+        el.textContent = overlayConfig.text || '';
+        el.style.fontSize = (overlayConfig.fontSize || 48) + 'px';
+        el.style.cssText = commonCss + el.style.cssText;
+    });
+
+    topText.style.top = topY + 'px';
+    bottomText.style.top = bottomY + 'px';
+}
+
+// 更新所有页面上的叠加层
+function updateAllOverlays() {
+    const containers = document.querySelectorAll('#pdf-pages-container .pdf-page-container');
+    containers.forEach(container => {
+        const canvas = container.querySelector('canvas.pdf-page');
+        if (canvas) {
+            createOrUpdateOverlayForPage(container, canvas);
+        }
+    });
 }
 
 // 显示预览
