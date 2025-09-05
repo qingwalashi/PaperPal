@@ -341,7 +341,7 @@ function renderCurrentPage() {
 }
 
 // 创建台签页面HTML
-function createNameplatePage(names, pageIndex) {
+function createNameplatePage(names, pageIndex, isExport = false) {
     const fontFamily = getFontFamily(nameplateData.selectedFont);
     const fontSize = nameplateData.fontSize;
     
@@ -354,6 +354,10 @@ function createNameplatePage(names, pageIndex) {
     
     // 上半部分台签：文字底边距中轴线的距离
     if (rawName) {
+        const bottomOffset = isExport 
+            ? `calc(${nameplateData.yOffsetMm}mm + 0.5em)`
+            : `${nameplateData.yOffsetMm}mm`;
+        
         nameplateItems += `
             <div class="nameplate-item" style="
                 position: absolute;
@@ -368,7 +372,7 @@ function createNameplatePage(names, pageIndex) {
                 <div style="
                     position: absolute;
                     left: 50%;
-                    bottom: calc(${nameplateData.yOffsetMm}mm + 0.5em);
+                    bottom: ${bottomOffset};
                     transform: translateX(-50%);
                     text-align: center;
                     white-space: nowrap;
@@ -386,6 +390,10 @@ function createNameplatePage(names, pageIndex) {
     
     // 下半部分台签：文字底边距中轴线的距离（旋转180°后）
     if (rawName) {
+        const topOffset = isExport 
+            ? `calc(${nameplateData.yOffsetMm}mm + 0.5em)`
+            : `${nameplateData.yOffsetMm}mm`;
+        
         nameplateItems += `
             <div class="nameplate-item" style="
                 position: absolute;
@@ -400,7 +408,7 @@ function createNameplatePage(names, pageIndex) {
                 <div style="
                     position: absolute;
                     left: 50%;
-                    top: calc(${nameplateData.yOffsetMm}mm + 0.5em);
+                    top: ${topOffset};
                     transform: translateX(-50%) rotate(180deg);
                     text-align: center;
                     white-space: nowrap;
@@ -458,7 +466,7 @@ function createNameplatePage(names, pageIndex) {
     `;
 }
 
-// 自适应台签文本以避免裁剪
+// 确保文本样式与设置一致，不进行自动缩放
 function adjustNameplateTextToFit(pageElement) {
     if (!pageElement) return;
     // 选中每个台签项内的文本容器（第二层 div）
@@ -466,84 +474,18 @@ function adjustNameplateTextToFit(pageElement) {
     items.forEach(item => {
         const textDiv = item && item.querySelector('div');
         if (!textDiv) return;
-
-        // 基于当前设置的字体大小开始
-        const computed = window.getComputedStyle(textDiv);
-        let baseSize = parseFloat(computed.fontSize || nameplateData.fontSize || 24);
-        // 设定边界，避免太小
-        const minSize = 10;
         
-        // 确保文本样式与预览一致
+        // 确保文本样式与用户设置完全一致，允许超出容器
         textDiv.style.fontFamily = getFontFamily(nameplateData.selectedFont);
         textDiv.style.fontSize = `${nameplateData.fontSize}px`;
         textDiv.style.fontWeight = 'bold';
         textDiv.style.whiteSpace = 'nowrap';
         textDiv.style.wordBreak = 'normal';
-        
-        fitTextInContainer(textDiv, item, baseSize, minSize);
+        // 允许文字超出容器边界
+        textDiv.style.overflow = 'visible';
     });
 }
 
-// 将文本缩放至容器内，优先不增大，只在过大时缩小
-function fitTextInContainer(textEl, containerEl, startSize, minSize) {
-    if (!textEl || !containerEl) return;
-    // 禁止换行，避免中文被自动按字折行
-    textEl.style.whiteSpace = 'nowrap';
-    textEl.style.wordBreak = 'normal';
-    // 使用 92% 的宽度预算，给左右留一点安全边距
-    const safetyRatio = 0.92;
-
-    // 读取容器可用宽高
-    const containerStyles = window.getComputedStyle(containerEl);
-    const cPaddingX = parseFloat(containerStyles.paddingLeft) + parseFloat(containerStyles.paddingRight);
-    const cPaddingY = parseFloat(containerStyles.paddingTop) + parseFloat(containerStyles.paddingBottom);
-    const maxWidth = containerEl.clientWidth - cPaddingX;
-    const maxHeight = containerEl.clientHeight - cPaddingY;
-    if (maxWidth <= 0 || maxHeight <= 0) return;
-
-    // 二分缩放，避免逐像素循环过慢
-    let low = minSize;
-    let high = Math.max(startSize, minSize);
-    let best = low;
-
-    // 如果起始就小于最小，则从起始作为上界
-    if (startSize < minSize) {
-        high = minSize;
-    }
-
-    // 先尝试从当前大小开始，若已适配则无需缩小
-    textEl.style.fontSize = `${startSize}px`;
-    // 强制一次 reflow
-    void textEl.offsetHeight;
-    if (isWithin(textEl, maxWidth * safetyRatio, maxHeight * safetyRatio)) {
-        return; // 已经合适
-    }
-
-    // 将上界设为当前大小，下界为 min
-    low = minSize;
-    high = startSize;
-
-    for (let iter = 0; iter < 20 && high - low > 0.5; iter++) {
-        const mid = (low + high) / 2;
-        textEl.style.fontSize = `${mid}px`;
-        void textEl.offsetHeight;
-        if (isWithin(textEl, maxWidth * safetyRatio, maxHeight * safetyRatio)) {
-            best = mid;
-            low = mid; // 可以更大一些
-        } else {
-            high = mid; // 太大，缩小
-        }
-    }
-
-    textEl.style.fontSize = `${Math.max(minSize, Math.min(best, startSize))}px`;
-
-    function isWithin(el, w, h) {
-        // 使用 scroll 尺寸判断内容真实尺寸
-        const neededW = Math.max(el.scrollWidth, el.clientWidth);
-        const neededH = Math.max(el.scrollHeight, el.clientHeight);
-        return neededW <= w && neededH <= h;
-    }
-}
 
 // 获取字体族
 function getFontFamily(fontName) {
@@ -740,7 +682,7 @@ async function downloadSinglePage() {
         
         // 重新生成当前页面内容，确保与预览一致
         const currentPageNames = nameplateData.pages[nameplateData.currentPage];
-        const cleanPageHTML = createNameplatePage(currentPageNames, nameplateData.currentPage);
+        const cleanPageHTML = createNameplatePage(currentPageNames, nameplateData.currentPage, true);
         exportContainer.innerHTML = cleanPageHTML;
         
         // 等待DOM渲染完成
@@ -844,7 +786,7 @@ async function downloadAllPages() {
             
             // 重新生成页面内容
             const pageNames = nameplateData.pages[i];
-            const cleanPageHTML = createNameplatePage(pageNames, i);
+            const cleanPageHTML = createNameplatePage(pageNames, i, true);
             exportContainer.innerHTML = cleanPageHTML;
             
             // 等待DOM渲染完成
