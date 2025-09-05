@@ -96,6 +96,38 @@ function initializeEventListeners() {
     document.addEventListener('keydown', handleKeyboardShortcuts);
 }
 
+// 同步右侧控件的显示文本与滑块初始值
+function syncControlDisplays() {
+    // 字体大小
+    const fontSizeSlider = document.getElementById('font-size-slider');
+    const fontSizeDisplay = document.getElementById('font-size-display');
+    if (fontSizeSlider) fontSizeSlider.value = String(nameplateData.fontSize);
+    if (fontSizeDisplay) fontSizeDisplay.textContent = `${nameplateData.fontSize}px`;
+
+    // 纵向位置（距中轴线）
+    const ySlider = document.getElementById('y-position-slider');
+    const yDisplay = document.getElementById('y-position-display');
+    if (ySlider) ySlider.value = String(nameplateData.yOffsetMm);
+    if (yDisplay) yDisplay.textContent = `${nameplateData.yOffsetMm}mm`;
+
+    // 边框宽度
+    const fwSlider = document.getElementById('frame-width-slider');
+    const fwDisplay = document.getElementById('frame-width-display');
+    if (fwSlider) fwSlider.value = String(nameplateData.frameWidthMm);
+    if (fwDisplay) fwDisplay.textContent = `${nameplateData.frameWidthMm}mm`;
+
+    // 边框高度（半幅）
+    const fhSlider = document.getElementById('frame-height-slider');
+    const fhDisplay = document.getElementById('frame-height-display');
+    if (fhSlider) fhSlider.value = String(nameplateData.frameHeightMm);
+    if (fhDisplay) fhDisplay.textContent = `${nameplateData.frameHeightMm}mm`;
+
+    // 下载按钮文本（保持禁用状态由其它流程控制）
+    if (document.getElementById('download-btn')) {
+        updateDownloadButtonText();
+    }
+}
+
 // 初始化字体选择器（自定义下拉，方案B）
 function initializeFontSelector() {
     const dropdown = document.getElementById('font-dropdown');
@@ -276,9 +308,14 @@ function renderCurrentPage() {
         // 显示空白A4纸
         const emptyPageHTML = createEmptyA4Page();
         previewContainer.innerHTML = emptyPageHTML;
-        autoFitPreview();
-        enableCanvasPan();
-        // 空白页无需适配
+        
+        // 延迟执行位置计算，确保DOM完全渲染
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                autoFitPreview();
+                enableCanvasPan();
+            });
+        });
         return;
     }
     
@@ -287,18 +324,19 @@ function renderCurrentPage() {
     // 创建A4页面
     const pageHTML = createNameplatePage(currentPageNames, nameplateData.currentPage);
     previewContainer.innerHTML = pageHTML;
-    // 初次渲染后自适应
-    autoFitPreview();
-    // 启用画布拖拽
-    enableCanvasPan();
-
-    // 渲染后执行文本自适配，避免预览与导出时文字被裁剪
-    // 放到下一帧，确保DOM布局完成
+    
+    // 延迟执行位置计算和拖拽设置，确保DOM完全渲染
     requestAnimationFrame(() => {
-        const pageElement = document.querySelector('.nameplate-page');
-        if (pageElement) {
-            adjustNameplateTextToFit(pageElement);
-        }
+        requestAnimationFrame(() => {
+            autoFitPreview();
+            enableCanvasPan();
+            
+            // 渲染后执行文本自适配，避免预览与导出时文字被裁剪
+            const pageElement = document.querySelector('.nameplate-page');
+            if (pageElement) {
+                adjustNameplateTextToFit(pageElement);
+            }
+        });
     });
 }
 
@@ -314,31 +352,31 @@ function createNameplatePage(names, pageIndex) {
         ? convertToEnglish(rawName)
         : rawName;
     
-    // 上半部分台签：以“文字底边到中轴线”的距离为度量
-    // 做法：创建半页容器（顶到中轴线），在容器内放置绝对定位的文本框，bottom = yOffsetMm
+    // 上半部分台签：文字底边距中轴线的距离
     if (rawName) {
         nameplateItems += `
             <div class="nameplate-item" style="
                 position: absolute;
                 top: 0;
-                left: 15mm;
-                width: 180mm;
+                left: 0;
+                width: 210mm;
                 height: 148.5mm;
                 font-family: ${fontFamily};
                 display: block;
+                pointer-events: none;
             ">
                 <div style="
                     position: absolute;
                     left: 50%;
+                    bottom: calc(${nameplateData.yOffsetMm}mm + 0.5em);
                     transform: translateX(-50%);
-                    bottom: ${nameplateData.yOffsetMm}mm;
                     text-align: center;
                     white-space: nowrap;
-                    line-height: 1.3;
-                    overflow: hidden;
+                    line-height: 1.0;
                     color: #1a1a1a;
                     font-size: ${fontSize}px;
                     font-weight: bold;
+                    z-index: 10;
                 ">
                     ${escapeHtml(displayName)}
                 </div>
@@ -346,31 +384,31 @@ function createNameplatePage(names, pageIndex) {
         `;
     }
     
-    // 下半部分台签：同理，以“文字底边到中轴线”的距离为度量
-    // 做法：创建半页容器（中轴线到底部），在容器内放置绝对定位的文本框，top = yOffsetMm，并对文本旋转180°
+    // 下半部分台签：文字底边距中轴线的距离（旋转180°后）
     if (rawName) {
         nameplateItems += `
             <div class="nameplate-item" style="
                 position: absolute;
                 bottom: 0;
-                left: 15mm;
-                width: 180mm;
+                left: 0;
+                width: 210mm;
                 height: 148.5mm;
                 font-family: ${fontFamily};
                 display: block;
+                pointer-events: none;
             ">
                 <div style="
                     position: absolute;
                     left: 50%;
+                    top: calc(${nameplateData.yOffsetMm}mm + 0.5em);
                     transform: translateX(-50%) rotate(180deg);
-                    top: ${nameplateData.yOffsetMm}mm;
                     text-align: center;
                     white-space: nowrap;
-                    line-height: 1.3;
-                    overflow: hidden;
+                    line-height: 1.0;
                     color: #1a1a1a;
                     font-size: ${fontSize}px;
                     font-weight: bold;
+                    z-index: 10;
                 ">
                     ${escapeHtml(displayName)}
                 </div>
@@ -413,9 +451,9 @@ function createNameplatePage(names, pageIndex) {
             border: 1px solid #e0e0e0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         ">
-            ${nameplateItems}
             ${topFrame}
             ${bottomFrame}
+            ${nameplateItems}
         </div>
     `;
 }
@@ -434,6 +472,14 @@ function adjustNameplateTextToFit(pageElement) {
         let baseSize = parseFloat(computed.fontSize || nameplateData.fontSize || 24);
         // 设定边界，避免太小
         const minSize = 10;
+        
+        // 确保文本样式与预览一致
+        textDiv.style.fontFamily = getFontFamily(nameplateData.selectedFont);
+        textDiv.style.fontSize = `${nameplateData.fontSize}px`;
+        textDiv.style.fontWeight = 'bold';
+        textDiv.style.whiteSpace = 'nowrap';
+        textDiv.style.wordBreak = 'normal';
+        
         fitTextInContainer(textDiv, item, baseSize, minSize);
     });
 }
@@ -678,41 +724,59 @@ async function downloadSinglePage() {
             CommonUtils.showNotification('正在生成PDF，请稍候...', 'info');
         }
         
-        const pageElement = document.querySelector('.nameplate-page');
-        if (!pageElement) return;
+        // 创建一个新的隐藏容器专门用于导出
+        const exportContainer = document.createElement('div');
+        exportContainer.style.cssText = `
+            position: fixed;
+            top: -10000px;
+            left: -10000px;
+            width: 210mm;
+            height: 297mm;
+            background: #ffffff;
+            z-index: -1000;
+            font-family: ${getFontFamily(nameplateData.selectedFont)};
+        `;
+        document.body.appendChild(exportContainer);
         
-        // 临时隐藏中轴线和折叠指示器（仅用于预览）
-        const centerLine = pageElement.querySelector('.center-line');
-        const foldIndicators = pageElement.querySelector('.fold-indicators');
-        const foldText = pageElement.querySelector('.fold-text');
+        // 重新生成当前页面内容，确保与预览一致
+        const currentPageNames = nameplateData.pages[nameplateData.currentPage];
+        const cleanPageHTML = createNameplatePage(currentPageNames, nameplateData.currentPage);
+        exportContainer.innerHTML = cleanPageHTML;
         
-        if (centerLine) centerLine.style.display = 'none';
-        if (foldIndicators) foldIndicators.style.display = 'none';
-        if (foldText) foldText.style.display = 'none';
+        // 等待DOM渲染完成
+        await new Promise(r => requestAnimationFrame(r));
+        await new Promise(r => setTimeout(r, 100));
         
-        // 在截图前进行文本自适配，确保不会被裁剪
-        adjustNameplateTextToFit(pageElement);
-        // 等待样式生效
-        await new Promise(r => setTimeout(r, 50));
+        const exportPageElement = exportContainer.querySelector('.nameplate-page');
+        if (!exportPageElement) {
+            document.body.removeChild(exportContainer);
+            return;
+        }
         
-        // 导出前：临时放开文本容器的 overflow，避免被裁剪
-        const textContainers = Array.from(pageElement.querySelectorAll('.nameplate-item > div'));
-        const prevOverflow = textContainers.map(el => el.style.overflow);
-        textContainers.forEach(el => { el.style.overflow = 'visible'; });
-
+        // 确保导出页面样式与预览一致
+        exportPageElement.style.transform = 'none';
+        exportPageElement.style.boxShadow = 'none';
+        exportPageElement.style.border = 'none';
+        
+        // 应用与预览相同的文本自适应缩放
+        adjustNameplateTextToFit(exportPageElement);
+        
+        // 等待文本调整完成
+        await new Promise(r => setTimeout(r, 100));
+        
         // 使用html2canvas生成图片
-        const canvas = await html2canvas(pageElement, {
-            scale: 3, // 提高分辨率
+        const canvas = await html2canvas(exportPageElement, {
+            scale: 3,
             useCORS: true,
             backgroundColor: '#ffffff',
             logging: false,
-            allowTaint: false
+            allowTaint: false,
+            width: exportPageElement.offsetWidth,
+            height: exportPageElement.offsetHeight
         });
         
-        // 恢复中轴线显示
-        if (centerLine) centerLine.style.display = '';
-        if (foldIndicators) foldIndicators.style.display = '';
-        if (foldText) foldText.style.display = '';
+        // 清理临时容器
+        document.body.removeChild(exportContainer);
         
         // 转换为PDF
         const { jsPDF } = window.jspdf;
@@ -720,12 +784,8 @@ async function downloadSinglePage() {
         
         const imgData = canvas.toDataURL('image/png', 0.95);
         pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-        
-        // 恢复 overflow 样式
-        textContainers.forEach((el, i) => { el.style.overflow = prevOverflow[i] || ''; });
 
         // 生成文件名
-        const currentPageNames = nameplateData.pages[nameplateData.currentPage];
         const namesPart = (currentPageNames[0] || '').substring(0, 20);
         const fileName = `台签_${namesPart}_第${nameplateData.currentPage + 1}页.pdf`;
         
@@ -761,6 +821,20 @@ async function downloadAllPages() {
             CommonUtils.showNotification(`正在合并生成 ${nameplateData.pages.length} 页PDF，请稍候...`, 'info');
         }
         
+        // 创建隐藏容器用于导出
+        const exportContainer = document.createElement('div');
+        exportContainer.style.cssText = `
+            position: fixed;
+            top: -10000px;
+            left: -10000px;
+            width: 210mm;
+            height: 297mm;
+            background: #ffffff;
+            z-index: -1000;
+            font-family: ${getFontFamily(nameplateData.selectedFont)};
+        `;
+        document.body.appendChild(exportContainer);
+        
         // 为每页生成PDF
         for (let i = 0; i < nameplateData.pages.length; i++) {
             // 更新进度
@@ -768,61 +842,50 @@ async function downloadAllPages() {
                 CommonUtils.showNotification(`正在处理第 ${i + 1}/${nameplateData.pages.length} 页...`, 'info');
             }
             
-            // 切换到当前页
-            nameplateData.currentPage = i;
-            renderCurrentPage();
+            // 重新生成页面内容
+            const pageNames = nameplateData.pages[i];
+            const cleanPageHTML = createNameplatePage(pageNames, i);
+            exportContainer.innerHTML = cleanPageHTML;
             
-            // 等待渲染完成
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // 等待DOM渲染完成
             await new Promise(r => requestAnimationFrame(r));
-            
-            const pageElement = document.querySelector('.nameplate-page');
-            if (!pageElement) continue;
-            
-            // 临时隐藏预览元素
-            const centerLine = pageElement.querySelector('.center-line');
-            const foldIndicators = pageElement.querySelector('.fold-indicators');
-            const foldText = pageElement.querySelector('.fold-text');
-            
-            if (centerLine) centerLine.style.display = 'none';
-            if (foldIndicators) foldIndicators.style.display = 'none';
-            if (foldText) foldText.style.display = 'none';
-            
-            // 在截图前进行文本自适配，确保不会被裁剪
-            adjustNameplateTextToFit(pageElement);
-            // 等待样式应用
             await new Promise(r => setTimeout(r, 50));
             
-            // 导出前：临时放开文本容器的 overflow，避免被裁剪
-            const textContainers = Array.from(pageElement.querySelectorAll('.nameplate-item > div'));
-            const prevOverflow = textContainers.map(el => el.style.overflow);
-            textContainers.forEach(el => { el.style.overflow = 'visible'; });
+            const exportPageElement = exportContainer.querySelector('.nameplate-page');
+            if (!exportPageElement) continue;
+            
+            // 确保导出页面样式干净
+            exportPageElement.style.transform = 'none';
+            exportPageElement.style.boxShadow = 'none';
+            exportPageElement.style.border = 'none';
+            
+            // 应用与预览相同的文本自适应缩放
+            adjustNameplateTextToFit(exportPageElement);
+            
+            // 等待文本调整完成
+            await new Promise(r => setTimeout(r, 100));
 
             // 生成canvas
-            const canvas = await html2canvas(pageElement, {
+            const canvas = await html2canvas(exportPageElement, {
                 scale: 3,
                 useCORS: true,
                 backgroundColor: '#ffffff',
                 logging: false,
-                allowTaint: false
+                allowTaint: false,
+                width: exportPageElement.offsetWidth,
+                height: exportPageElement.offsetHeight
             });
-            
-            // 恢复 overflow 样式
-            textContainers.forEach((el, i) => { el.style.overflow = prevOverflow[i] || ''; });
-            
-            // 恢复预览元素
-            if (centerLine) centerLine.style.display = '';
-            if (foldIndicators) foldIndicators.style.display = '';
-            if (foldText) foldText.style.display = '';
             
             const imgData = canvas.toDataURL('image/png', 0.95);
             // 添加到合并PDF
             if (i > 0) {
-                // 追加新页面（保持与首页相同的A4纵向规格）
                 pdf.addPage();
             }
             pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
         }
+        
+        // 清理临时容器
+        document.body.removeChild(exportContainer);
         
         // 下载合并PDF
         const timestamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-');
@@ -1319,40 +1382,57 @@ function zoomPreview(factor) {
 function autoFitPreview() {
     const previewContainer = document.getElementById('preview-container');
     const pageEl = previewContainer.querySelector('.nameplate-page');
-    if (!pageEl) return;
+    if (!pageEl || !previewContainer) return;
     
-    // 计算预览容器可用空间（宽高）
-    const rect = previewContainer.getBoundingClientRect();
-    const paddingV = 24; // 上下预留
-    const paddingH = 24; // 左右预留
-    const availableHeight = Math.max(200, window.innerHeight - rect.top - paddingV);
-    // 使用 clientWidth 避免滚动条出现/消失造成的宽度抖动
-    const availableWidth = Math.max(200, previewContainer.clientWidth - paddingH);
+    // 等待容器完全渲染，如果尺寸为0则延迟执行
+    const containerHeight = previewContainer.clientHeight;
+    const containerWidth = previewContainer.clientWidth;
+    
+    if (containerHeight === 0 || containerWidth === 0) {
+        // 容器尺寸还未确定，延迟执行
+        setTimeout(() => autoFitPreview(), 50);
+        return;
+    }
+    
+    const paddingV = 40; // 上下预留，增加一些空间
+    const paddingH = 40; // 左右预留，增加一些空间
+    
+    const availableHeight = Math.max(200, containerHeight - paddingV);
+    const availableWidth = Math.max(200, containerWidth - paddingH);
 
     // 实际页面渲染尺寸（像素）
     const pageHeight = pageEl.offsetHeight || 1;
     const pageWidth = pageEl.offsetWidth || 1;
+    
+    // 如果页面尺寸还未确定，延迟执行
+    if (pageHeight <= 1 || pageWidth <= 1) {
+        setTimeout(() => autoFitPreview(), 50);
+        return;
+    }
 
     // 等比缩放，取宽高最小比值
     let scaleH = availableHeight / pageHeight;
     let scaleW = availableWidth / pageWidth;
     let scale = Math.min(scaleH, scaleW);
-    // 限制缩放范围
-    scale = Math.max(0.3, Math.min(scale, 1.0));
+    // 限制缩放范围，允许更小的缩放以适应容器
+    scale = Math.max(0.2, Math.min(scale, 1.0));
 
     nameplateData.zoomLevel = scale;
-    // 重置平移，默认在容器中水平/垂直居中显示
-    const containerWidth = previewContainer.clientWidth;
+    
+    // 重新计算居中位置，确保页面在容器中心
     const scaledWidth = pageWidth * scale;
     const scaledHeight = pageHeight * scale;
+    
+    // 水平居中：容器宽度减去缩放后页面宽度，除以2
     nameplateData.panX = Math.floor((containerWidth - scaledWidth) / 2);
-    nameplateData.panY = Math.floor((availableHeight - scaledHeight) / 2);
+    // 垂直居中：容器高度减去缩放后页面高度，除以2
+    nameplateData.panY = Math.floor((containerHeight - scaledHeight) / 2);
+    
     applyPreviewTransform();
 
-    // 固定容器高度并隐藏滚动条，保证无滚轮一屏显示
-    previewContainer.style.height = `${Math.floor(availableHeight)}px`;
+    // 确保容器样式正确
     previewContainer.style.overflow = 'hidden';
-    previewContainer.style.width = '100%';
+    previewContainer.style.position = 'relative';
 }
 
 // 统一应用缩放与平移
@@ -1361,8 +1441,14 @@ function applyPreviewTransform() {
     const pageEl = previewContainer.querySelector('.nameplate-page');
     if (!pageEl) return;
     
+    // 设置页面的绝对定位，从左上角开始
+    pageEl.style.position = 'absolute';
+    pageEl.style.left = '0';
+    pageEl.style.top = '0';
+    
+    // 应用变换：先平移到正确位置，再缩放
     pageEl.style.transform = `translate(${nameplateData.panX}px, ${nameplateData.panY}px) scale(${nameplateData.zoomLevel})`;
-    pageEl.style.transformOrigin = 'center center';
+    pageEl.style.transformOrigin = 'top left';
     pageEl.style.transition = nameplateData._isDragging ? 'none' : 'transform 0.2s ease-out';
     
     // 拖拽时的视觉反馈
@@ -1499,6 +1585,9 @@ function createEmptyA4Page() {
     
     return `
         <div class="nameplate-page print-area" data-page="empty" style="
+            position: relative;
+            width: 210mm;
+            height: 297mm;
             background: #fafafa;
             border: 1px solid #e0e0e0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
