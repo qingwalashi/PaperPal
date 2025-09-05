@@ -102,7 +102,6 @@ function initializeMarkdownConverter() {
     
     // 设置默认模板
     updateFormValues(templates.default);
-    updateConfigTextarea(templates.default);
 }
 
 // 初始化标签页切换
@@ -290,6 +289,9 @@ function initializeTemplateSettings() {
             // Ignore parsing errors while typing, linter will show them
         }
     });
+
+    // 初始化时将默认模板写入 YAML 编辑器
+    updateConfigTextarea(templates.default);
 }
 
 // 初始化转换按钮
@@ -368,15 +370,7 @@ function getConfigFromForm() {
     };
 }
 
-// 更新配置文本框
-function updateConfigTextarea(template) {
-    const yamlText = jsyaml.dump(template, {
-        indent: 2,
-        lineWidth: -1,
-        noRefs: true
-    });
-    yamlEditor.setValue(yamlText);
-}
+// （移除全局 updateConfigTextarea，改为使用 initializeTemplateSettings 闭包内的实现）
 
 // 将HTML转换为docx格式
 function convertHtmlToDocx(element, template, level = 0, listType = null, olStart = 1) {

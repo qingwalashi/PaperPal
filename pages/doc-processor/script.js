@@ -16,8 +16,8 @@ function initializeDocProcessor() {
     // 初始化文件上传
     initializeFileUpload();
     
-    // 初始化复制按钮
-    initializeCopyButtons();
+    // 初始化复制按钮（绑定复制 TXT/MD/HTML 的事件）
+    initializeResultActions();
     
     // 初始化时同步预览区域高度
     syncPreviewHeight();
@@ -25,9 +25,6 @@ function initializeDocProcessor() {
 
     // 初始化标签页切换
     initializeTabSwitching();
-    
-    // 初始化结果操作按钮
-    initializeResultActions();
 }
 
 // 初始化文件上传
