@@ -309,11 +309,20 @@ function renderCurrentPage() {
         const emptyPageHTML = createEmptyA4Page();
         previewContainer.innerHTML = emptyPageHTML;
         
-        // 延迟执行位置计算，确保DOM完全渲染
+        // 延迟执行位置计算，确保DOM完全渲染，与有内容页面保持一致的流程
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 autoFitPreview();
                 enableCanvasPan();
+                
+                // 确保空白页面也有相同的DOM处理流程
+                const pageElement = document.querySelector('.nameplate-page');
+                if (pageElement) {
+                    // 虽然空白页面没有文本，但保持相同的处理流程
+                    adjustNameplateTextToFit(pageElement);
+                    // 文本处理完成后重新计算居中位置
+                    autoFitPreview();
+                }
             });
         });
         return;
@@ -335,6 +344,8 @@ function renderCurrentPage() {
             const pageElement = document.querySelector('.nameplate-page');
             if (pageElement) {
                 adjustNameplateTextToFit(pageElement);
+                // 文本处理完成后重新计算居中位置
+                autoFitPreview();
             }
         });
     });
@@ -455,7 +466,7 @@ function createNameplatePage(names, pageIndex, isExport = false) {
             position: relative;
             width: 210mm;
             height: 297mm;
-            background: #fafafa;
+            background: white;
             border: 1px solid #e0e0e0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         ">
@@ -1361,14 +1372,20 @@ function autoFitPreview() {
 
     nameplateData.zoomLevel = scale;
     
-    // 重新计算居中位置，确保页面在容器中心
-    const scaledWidth = pageWidth * scale;
-    const scaledHeight = pageHeight * scale;
+    // 重新计算居中位置，确保A4纸中心对齐到预览容器中心
+    // 由于使用 transformOrigin: 'center'，需要将A4纸的中心点移动到容器中心
     
-    // 水平居中：容器宽度减去缩放后页面宽度，除以2
-    nameplateData.panX = Math.floor((containerWidth - scaledWidth) / 2);
-    // 垂直居中：容器高度减去缩放后页面高度，除以2
-    nameplateData.panY = Math.floor((containerHeight - scaledHeight) / 2);
+    // A4纸的中心点位置（未缩放时）
+    const pageCenterX = pageWidth / 2;
+    const pageCenterY = pageHeight / 2;
+    
+    // 容器的中心点位置
+    const containerCenterX = containerWidth / 2;
+    const containerCenterY = containerHeight / 2;
+    
+    // 计算需要的平移量，让A4纸中心对齐到容器中心
+    nameplateData.panX = Math.floor(containerCenterX - pageCenterX);
+    nameplateData.panY = Math.floor(containerCenterY - pageCenterY);
     
     applyPreviewTransform();
 
@@ -1390,7 +1407,7 @@ function applyPreviewTransform() {
     
     // 应用变换：先平移到正确位置，再缩放
     pageEl.style.transform = `translate(${nameplateData.panX}px, ${nameplateData.panY}px) scale(${nameplateData.zoomLevel})`;
-    pageEl.style.transformOrigin = 'top left';
+    pageEl.style.transformOrigin = 'center';
     pageEl.style.transition = nameplateData._isDragging ? 'none' : 'transform 0.2s ease-out';
     
     // 拖拽时的视觉反馈
@@ -1530,7 +1547,7 @@ function createEmptyA4Page() {
             position: relative;
             width: 210mm;
             height: 297mm;
-            background: #fafafa;
+            background: white;
             border: 1px solid #e0e0e0;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         ">
