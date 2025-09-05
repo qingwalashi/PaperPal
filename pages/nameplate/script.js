@@ -663,207 +663,30 @@ function togglePreview() {
 // 预览按钮已移除
 
 // 下载单页
-async function downloadSinglePage() {
+function downloadSinglePage() {
     if (nameplateData.pages.length === 0) {
         if (window.CommonUtils) {
             CommonUtils.showNotification('请先生成台签！', 'warning');
         }
         return;
     }
-    
-    try {
-        // 显示下载进度
-        if (window.CommonUtils) {
-            CommonUtils.showNotification('正在生成PDF，请稍候...', 'info');
-        }
-        
-        // 创建一个新的隐藏容器专门用于导出
-        const exportContainer = document.createElement('div');
-        exportContainer.style.cssText = `
-            position: fixed;
-            top: -10000px;
-            left: -10000px;
-            width: 210mm;
-            height: 297mm;
-            background: #ffffff;
-            z-index: -1000;
-            font-family: ${getFontFamily(nameplateData.selectedFont)};
-        `;
-        document.body.appendChild(exportContainer);
-        
-        // 重新生成当前页面内容，确保与预览一致
-        const currentPageNames = nameplateData.pages[nameplateData.currentPage];
-        const cleanPageHTML = createNameplatePage(currentPageNames, nameplateData.currentPage, true);
-        exportContainer.innerHTML = cleanPageHTML;
-        
-        // 等待DOM渲染完成
-        await new Promise(r => requestAnimationFrame(r));
-        await new Promise(r => setTimeout(r, 100));
-        
-        const exportPageElement = exportContainer.querySelector('.nameplate-page');
-        if (!exportPageElement) {
-            document.body.removeChild(exportContainer);
-            return;
-        }
-        
-        // 确保导出页面样式与预览一致
-        exportPageElement.style.transform = 'none';
-        exportPageElement.style.boxShadow = 'none';
-        exportPageElement.style.border = 'none';
-        
-        // 应用与预览相同的文本自适应缩放
-        adjustNameplateTextToFit(exportPageElement);
-        
-        // 等待文本调整完成
-        await new Promise(r => setTimeout(r, 100));
-        
-        // 使用html2canvas生成图片
-        const canvas = await html2canvas(exportPageElement, {
-            scale: 3,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-            allowTaint: false,
-            width: exportPageElement.offsetWidth,
-            height: exportPageElement.offsetHeight
-        });
-        
-        // 清理临时容器
-        document.body.removeChild(exportContainer);
-        
-        // 转换为PDF
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        const imgData = canvas.toDataURL('image/png', 0.95);
-        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-
-        // 生成文件名
-        const namesPart = (currentPageNames[0] || '').substring(0, 20);
-        const fileName = `台签_${namesPart}_第${nameplateData.currentPage + 1}页.pdf`;
-        
-        pdf.save(fileName);
-        
-        if (window.CommonUtils) {
-            CommonUtils.showNotification('单页下载成功！', 'success');
-        }
-    } catch (error) {
-        console.error('下载失败:', error);
-        if (window.CommonUtils) {
-            CommonUtils.showNotification('下载失败，请重试！', 'error');
-        }
-    }
+    const currentPageNames = nameplateData.pages[nameplateData.currentPage];
+    const html = createNameplatePage(currentPageNames, nameplateData.currentPage, true);
+    openPrintWindow([html], (currentPageNames[0] || '台签'));
 }
 
 // 批量下载所有页面（合并为一个多页PDF）
-async function downloadAllPages() {
+function downloadAllPages() {
     if (nameplateData.pages.length === 0) {
         if (window.CommonUtils) {
             CommonUtils.showNotification('请先生成台签！', 'warning');
         }
         return;
     }
-    
-    try {
-        const { jsPDF } = window.jspdf;
-        const originalPage = nameplateData.currentPage;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        // 显示进度提示
-        if (window.CommonUtils) {
-            CommonUtils.showNotification(`正在合并生成 ${nameplateData.pages.length} 页PDF，请稍候...`, 'info');
-        }
-        
-        // 创建隐藏容器用于导出
-        const exportContainer = document.createElement('div');
-        exportContainer.style.cssText = `
-            position: fixed;
-            top: -10000px;
-            left: -10000px;
-            width: 210mm;
-            height: 297mm;
-            background: #ffffff;
-            z-index: -1000;
-            font-family: ${getFontFamily(nameplateData.selectedFont)};
-        `;
-        document.body.appendChild(exportContainer);
-        
-        // 为每页生成PDF
-        for (let i = 0; i < nameplateData.pages.length; i++) {
-            // 更新进度
-            if (window.CommonUtils && i > 0) {
-                CommonUtils.showNotification(`正在处理第 ${i + 1}/${nameplateData.pages.length} 页...`, 'info');
-            }
-            
-            // 重新生成页面内容
-            const pageNames = nameplateData.pages[i];
-            const cleanPageHTML = createNameplatePage(pageNames, i, true);
-            exportContainer.innerHTML = cleanPageHTML;
-            
-            // 等待DOM渲染完成
-            await new Promise(r => requestAnimationFrame(r));
-            await new Promise(r => setTimeout(r, 50));
-            
-            const exportPageElement = exportContainer.querySelector('.nameplate-page');
-            if (!exportPageElement) continue;
-            
-            // 确保导出页面样式干净
-            exportPageElement.style.transform = 'none';
-            exportPageElement.style.boxShadow = 'none';
-            exportPageElement.style.border = 'none';
-            
-            // 应用与预览相同的文本自适应缩放
-            adjustNameplateTextToFit(exportPageElement);
-            
-            // 等待文本调整完成
-            await new Promise(r => setTimeout(r, 100));
-
-            // 生成canvas
-            const canvas = await html2canvas(exportPageElement, {
-                scale: 3,
-                useCORS: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-                allowTaint: false,
-                width: exportPageElement.offsetWidth,
-                height: exportPageElement.offsetHeight
-            });
-            
-            const imgData = canvas.toDataURL('image/png', 0.95);
-            // 添加到合并PDF
-            if (i > 0) {
-                pdf.addPage();
-            }
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
-        }
-        
-        // 清理临时容器
-        document.body.removeChild(exportContainer);
-        
-        // 下载合并PDF
-        const timestamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-');
-        const mergedName = `台签_合并_${nameplateData.pages.length}页_${timestamp}.pdf`;
-        pdf.save(mergedName);
-        
-        // 恢复到原始页面
-        nameplateData.currentPage = originalPage;
-        renderCurrentPage();
-        updatePaginationControls();
-        
-        if (window.CommonUtils) {
-            CommonUtils.showNotification(`合并下载成功！共 ${nameplateData.pages.length} 页`, 'success');
-        }
-    } catch (error) {
-        console.error('批量下载失败:', error);
-        if (window.CommonUtils) {
-            CommonUtils.showNotification('批量下载失败，请重试！', 'error');
-        }
-        
-        // 恢复到原始页面
-        nameplateData.currentPage = originalPage || 0;
-        renderCurrentPage();
-        updatePaginationControls();
-    }
+    const pagesHTML = nameplateData.pages.map((pageNames, i) => (
+        createNameplatePage(pageNames, i, true)
+    ));
+    openPrintWindow(pagesHTML, `台签_合并_${nameplateData.pages.length}页`);
 }
 
 // 处理订阅
@@ -1631,4 +1454,52 @@ function handleKeyboardShortcuts(e) {
             }
             break;
     }
+}
+
+// 打印窗口（矢量文字导出 PDF）
+function openPrintWindow(pagesHTMLArray, title = '台签') {
+    const win = window.open('', '_blank');
+    if (!win) {
+        if (window.CommonUtils) {
+            CommonUtils.showNotification('弹出打印窗口失败，请检查浏览器拦截设置', 'warning');
+        }
+        return;
+    }
+    const styles = `
+        <style>
+            @page { size: A4; margin: 0; }
+            @media print {
+              html, body { width: 210mm; height: 297mm; }
+              .nameplate-page { page-break-after: always; box-shadow: none !important; border: none !important; }
+            }
+            html, body { margin: 0; padding: 0; background: #ffffff; }
+            .nameplate-page { width: 210mm; height: 297mm; }
+        </style>
+    `;
+    const pages = pagesHTMLArray.join('\n');
+    const fam = getFontFamily(nameplateData.selectedFont);
+    const docHTML = `
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="utf-8" />
+            <title>${title}</title>
+            ${styles}
+        </head>
+        <body style="font-family:${fam};">
+            ${pages}
+        </body>
+        </html>
+    `;
+    win.document.open();
+    win.document.write(docHTML);
+    win.document.close();
+    win.onload = () => {
+        try {
+            win.focus();
+            setTimeout(() => {
+                win.print();
+            }, 50);
+        } catch (e) {}
+    };
 }
